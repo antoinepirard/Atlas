@@ -270,14 +270,17 @@ pub fn check_accessibility_permission() -> bool {
 /// This will show the system dialog asking the user to grant access
 #[cfg(target_os = "macos")]
 pub fn request_accessibility_permission() -> bool {
+    use core_foundation::base::CFType;
+    
     unsafe {
         let key = CFString::new("AXTrustedCheckOptionPrompt");
         let value = CFBoolean::true_value();
         
-        let keys = vec![key.as_CFType()];
-        let values = vec![value.as_CFType()];
+        let keys: Vec<CFType> = vec![key.as_CFType()];
+        let values: Vec<CFType> = vec![value.as_CFType()];
         
-        let options = CFDictionary::from_CFType_pairs(&keys.iter().zip(values.iter()).map(|(k, v)| (*k, *v)).collect::<Vec<_>>());
+        let pairs: Vec<(CFType, CFType)> = keys.into_iter().zip(values.into_iter()).collect();
+        let options = CFDictionary::from_CFType_pairs(&pairs);
         
         AXIsProcessTrustedWithOptions(options.as_concrete_TypeRef() as _)
     }

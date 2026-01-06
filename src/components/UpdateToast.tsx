@@ -21,7 +21,11 @@ export function UpdateToast({ onOpenSettings }: UpdateToastProps) {
   const checkForUpdates = useCallback(async (manual = false) => {
     setStatus('checking');
     setError(null);
-    setIsVisible(true);
+    
+    // Only show the toast immediately for manual checks
+    if (manual) {
+      setIsVisible(true);
+    }
     
     try {
       const updateResult = await check();
@@ -29,10 +33,11 @@ export function UpdateToast({ onOpenSettings }: UpdateToastProps) {
       if (updateResult) {
         setUpdate(updateResult);
         setStatus('available');
+        setIsVisible(true); // Show toast when update is available
       } else {
         setStatus('up-to-date');
-        // Auto-hide "up to date" message after 3 seconds if not manual
-        if (!manual) {
+        // Only show "up to date" message for manual checks
+        if (manual) {
           setTimeout(() => setIsVisible(false), 3000);
         }
       }
@@ -40,6 +45,10 @@ export function UpdateToast({ onOpenSettings }: UpdateToastProps) {
       console.error('Update check failed:', err);
       setError(err instanceof Error ? err.message : 'Failed to check for updates');
       setStatus('error');
+      // Only show error for manual checks
+      if (manual) {
+        setIsVisible(true);
+      }
     }
   }, []);
 
