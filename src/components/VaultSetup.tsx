@@ -9,6 +9,7 @@ import {
   ShieldCheckIcon,
 } from '@heroicons/react/24/outline';
 import { useVault } from './VaultProvider';
+import { startWindowDrag } from '../lib/tauri';
 
 type SetupStep = 'password' | 'recovery';
 
@@ -202,8 +203,11 @@ export function VaultSetup() {
   
   return (
     <div className="min-h-screen bg-stone-100 flex items-center justify-center p-6">
-      {/* Drag region for window */}
-      <div data-tauri-drag-region className="fixed top-0 left-0 right-0 h-8" />
+      {/* Draggable title bar region */}
+      <div 
+        onMouseDown={() => startWindowDrag()}
+        className="fixed top-0 left-0 right-0 h-7 cursor-default select-none"
+      />
       <AnimatePresence mode="wait">
         {step === 'password' ? (
           <motion.div

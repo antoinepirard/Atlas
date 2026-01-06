@@ -1,5 +1,6 @@
 import { invoke } from '@tauri-apps/api/core';
 import { open } from '@tauri-apps/plugin-dialog';
+import { getCurrentWindow } from '@tauri-apps/api/window';
 import type {
   MymindItem,
   AddItemInput,
@@ -110,5 +111,10 @@ export async function pickStorageFolder(): Promise<string | null> {
     title: 'Choose storage location',
   });
   return result as string | null;
+}
+
+// Window controls
+export async function startWindowDrag(): Promise<void> {
+  await getCurrentWindow().startDragging();
 }
 

@@ -11,6 +11,7 @@ import { TypeFilter } from './TypeFilter';
 import { PasteIndicator } from './PasteIndicator';
 import { useVault } from './VaultProvider';
 import { useMymind } from '../hooks/useMymind';
+import { startWindowDrag } from '../lib/tauri';
 import type { MymindItem } from '../types';
 
 export function MymindApp() {
@@ -91,22 +92,26 @@ export function MymindApp() {
     <div className="min-h-screen bg-stone-100">
       <PasteIndicator isVisible={isPasting} />
 
-      <header 
-        data-tauri-drag-region 
-        className="sticky top-0 z-40 bg-stone-100/95 backdrop-blur-sm border-b border-stone-200/50"
-      >
-        <div className="flex items-center justify-between pl-[76px] pr-6 py-4 pt-10">
+      <header className="sticky top-0 z-40 bg-stone-100/95 backdrop-blur-sm border-b border-stone-200/50">
+        {/* Draggable title bar region */}
+        <div 
+          onMouseDown={() => startWindowDrag()}
+          className="h-7 w-full cursor-default select-none"
+        />
+        
+        {/* Toolbar row - settings on left after traffic lights, controls on right */}
+        <div className="flex items-center justify-between px-4 py-2">
           <motion.button
             whileHover={{ scale: 1.05 }}
             whileTap={{ scale: 0.95 }}
             onClick={() => setIsSettingsOpen(true)}
-            className="p-2 text-stone-400 hover:text-stone-600 hover:bg-stone-100 rounded-lg transition-colors"
+            className="p-2 text-stone-400 hover:text-stone-600 hover:bg-stone-200/50 rounded-lg transition-colors"
             title="Settings"
           >
             <Cog6ToothIcon className="w-5 h-5" />
           </motion.button>
 
-          <div className="flex items-center gap-4">
+          <div className="flex items-center gap-3">
             <TypeFilter
               value={filterType}
               onChange={handleFilterType}
@@ -137,7 +142,8 @@ export function MymindApp() {
           </div>
         </div>
 
-        <div className="px-6 pb-8 pt-4 max-w-[1800px] mx-auto">
+        {/* Search bar */}
+        <div className="px-6 pb-6 pt-2 max-w-[1800px] mx-auto">
           <SearchBar
             value={searchQuery}
             onChange={handleSearch}
