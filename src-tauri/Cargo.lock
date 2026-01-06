@@ -173,6 +173,32 @@ dependencies = [
 ]
 
 [[package]]
+name = "atlas"
+version = "0.1.0"
+dependencies = [
+ "aes-gcm",
+ "base64 0.22.1",
+ "chrono",
+ "dirs 5.0.1",
+ "futures",
+ "hex",
+ "keyring",
+ "pbkdf2",
+ "rand 0.8.5",
+ "reqwest",
+ "rusqlite",
+ "serde",
+ "serde_json",
+ "sha2",
+ "tauri",
+ "tauri-build",
+ "tauri-plugin-dialog",
+ "tauri-plugin-shell",
+ "tokio",
+ "uuid",
+]
+
+[[package]]
 name = "atomic-waker"
 version = "1.1.2"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -2186,32 +2212,6 @@ dependencies = [
  "serde",
  "thiserror 2.0.17",
  "windows-sys 0.60.2",
-]
-
-[[package]]
-name = "mymind-app"
-version = "0.1.0"
-dependencies = [
- "aes-gcm",
- "base64 0.22.1",
- "chrono",
- "dirs 5.0.1",
- "futures",
- "hex",
- "keyring",
- "pbkdf2",
- "rand 0.8.5",
- "reqwest",
- "rusqlite",
- "serde",
- "serde_json",
- "sha2",
- "tauri",
- "tauri-build",
- "tauri-plugin-dialog",
- "tauri-plugin-shell",
- "tokio",
- "uuid",
 ]
 
 [[package]]

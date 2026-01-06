@@ -202,6 +202,8 @@ export function VaultSetup() {
   
   return (
     <div className="min-h-screen bg-stone-100 flex items-center justify-center p-6">
+      {/* Drag region for window */}
+      <div data-tauri-drag-region className="fixed top-0 left-0 right-0 h-8" />
       <AnimatePresence mode="wait">
         {step === 'password' ? (
           <motion.div

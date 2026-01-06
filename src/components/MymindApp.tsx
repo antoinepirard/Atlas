@@ -91,58 +91,59 @@ export function MymindApp() {
     <div className="min-h-screen bg-stone-100">
       <PasteIndicator isVisible={isPasting} />
 
-      <header className="sticky top-0 z-40 bg-stone-100/95 backdrop-blur-sm border-b border-stone-200/50">
-        <div className="max-w-[1800px] mx-auto">
-          <div className="flex items-center justify-between px-6 py-4">
+      <header 
+        data-tauri-drag-region 
+        className="sticky top-0 z-40 bg-stone-100/95 backdrop-blur-sm border-b border-stone-200/50"
+      >
+        <div className="flex items-center justify-between pl-[76px] pr-6 py-4 pt-10">
+          <motion.button
+            whileHover={{ scale: 1.05 }}
+            whileTap={{ scale: 0.95 }}
+            onClick={() => setIsSettingsOpen(true)}
+            className="p-2 text-stone-400 hover:text-stone-600 hover:bg-stone-100 rounded-lg transition-colors"
+            title="Settings"
+          >
+            <Cog6ToothIcon className="w-5 h-5" />
+          </motion.button>
+
+          <div className="flex items-center gap-4">
+            <TypeFilter
+              value={filterType}
+              onChange={handleFilterType}
+            />
+
+            <motion.button
+              whileHover={{ scale: 1.02 }}
+              whileTap={{ scale: 0.98 }}
+              onClick={() => setIsAddModalOpen(true)}
+              className="flex items-center gap-2 px-4 py-2 bg-stone-900 text-white rounded-full hover:bg-stone-800 transition-colors text-sm"
+            >
+              <PlusIcon className="w-4 h-4" />
+              <span>Add</span>
+            </motion.button>
+
             <motion.button
               whileHover={{ scale: 1.05 }}
               whileTap={{ scale: 0.95 }}
-              onClick={() => setIsSettingsOpen(true)}
-              className="p-2 text-stone-400 hover:text-stone-600 hover:bg-stone-100 rounded-lg transition-colors"
-              title="Settings"
+              onClick={lock}
+              className="group relative p-2 text-stone-400 hover:text-stone-600 transition-colors"
+              title={`Lock vault (auto-locks in ${status.auto_lock_minutes} min)`}
             >
-              <Cog6ToothIcon className="w-5 h-5" />
+              <LockClosedIcon className="w-5 h-5" />
+              <span className="absolute -bottom-8 right-0 px-2 py-1 text-xs text-stone-500 bg-white rounded shadow-sm border border-stone-100 opacity-0 group-hover:opacity-100 transition-opacity whitespace-nowrap">
+                Auto-lock: {status.auto_lock_minutes}min
+              </span>
             </motion.button>
-
-            <div className="flex items-center gap-4">
-              <TypeFilter
-                value={filterType}
-                onChange={handleFilterType}
-              />
-
-              <motion.button
-                whileHover={{ scale: 1.02 }}
-                whileTap={{ scale: 0.98 }}
-                onClick={() => setIsAddModalOpen(true)}
-                className="flex items-center gap-2 px-4 py-2 bg-stone-900 text-white rounded-full hover:bg-stone-800 transition-colors text-sm"
-              >
-                <PlusIcon className="w-4 h-4" />
-                <span>Add</span>
-              </motion.button>
-
-              <motion.button
-                whileHover={{ scale: 1.05 }}
-                whileTap={{ scale: 0.95 }}
-                onClick={lock}
-                className="group relative p-2 text-stone-400 hover:text-stone-600 transition-colors"
-                title={`Lock vault (auto-locks in ${status.auto_lock_minutes} min)`}
-              >
-                <LockClosedIcon className="w-5 h-5" />
-                <span className="absolute -bottom-8 right-0 px-2 py-1 text-xs text-stone-500 bg-white rounded shadow-sm border border-stone-100 opacity-0 group-hover:opacity-100 transition-opacity whitespace-nowrap">
-                  Auto-lock: {status.auto_lock_minutes}min
-                </span>
-              </motion.button>
-            </div>
           </div>
+        </div>
 
-          <div className="px-6 pb-8 pt-4">
-            <SearchBar
-              value={searchQuery}
-              onChange={handleSearch}
-              isLoading={isSearching}
-              placeholder="Search my mind..."
-            />
-          </div>
+        <div className="px-6 pb-8 pt-4 max-w-[1800px] mx-auto">
+          <SearchBar
+            value={searchQuery}
+            onChange={handleSearch}
+            isLoading={isSearching}
+            placeholder="Search my mind..."
+          />
         </div>
       </header>
 
