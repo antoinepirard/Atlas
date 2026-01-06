@@ -78,6 +78,17 @@ export function SettingsModal({ isOpen, onClose }: SettingsModalProps) {
     }
   };
 
+  const handleRequestAccessibility = async () => {
+    try {
+      // This will show the system prompt to grant accessibility
+      await tauri.requestAccessibilityPermission();
+      // Check again after a short delay
+      setTimeout(checkAccessibility, 500);
+    } catch (err) {
+      console.error('Failed to request accessibility:', err);
+    }
+  };
+
   const handleOpenAccessibilitySettings = async () => {
     try {
       await tauri.openAccessibilitySettings();
@@ -433,8 +444,14 @@ export function SettingsModal({ isOpen, onClose }: SettingsModalProps) {
                           {!accessibilityGranted && !isCheckingAccess && (
                             <div className="mt-3 flex gap-2">
                               <button
-                                onClick={handleOpenAccessibilitySettings}
+                                onClick={handleRequestAccessibility}
                                 className="flex items-center gap-1.5 px-3 py-1.5 bg-amber-600 text-white rounded-lg text-xs font-medium hover:bg-amber-700 transition-colors"
+                              >
+                                Grant Access
+                              </button>
+                              <button
+                                onClick={handleOpenAccessibilitySettings}
+                                className="flex items-center gap-1.5 px-3 py-1.5 bg-white text-amber-700 border border-amber-300 rounded-lg text-xs font-medium hover:bg-amber-50 transition-colors"
                               >
                                 <ArrowTopRightOnSquareIcon className="w-3.5 h-3.5" />
                                 Open Settings
@@ -443,7 +460,7 @@ export function SettingsModal({ isOpen, onClose }: SettingsModalProps) {
                                 onClick={checkAccessibility}
                                 className="px-3 py-1.5 bg-white text-amber-700 border border-amber-300 rounded-lg text-xs font-medium hover:bg-amber-50 transition-colors"
                               >
-                                Check Again
+                                Refresh
                               </button>
                             </div>
                           )}

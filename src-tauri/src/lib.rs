@@ -85,6 +85,12 @@ fn check_accessibility_permission() -> bool {
     capture::check_accessibility_permission()
 }
 
+/// Request accessibility permission (shows system prompt)
+#[tauri::command]
+fn request_accessibility_permission() -> bool {
+    capture::request_accessibility_permission()
+}
+
 /// Open System Preferences to Accessibility settings
 #[tauri::command]
 fn open_accessibility_settings() -> Result<(), String> {
@@ -194,6 +200,7 @@ pub fn run() {
             // Quick capture commands
             trigger_quick_capture,
             check_accessibility_permission,
+            request_accessibility_permission,
             open_accessibility_settings,
         ])
         .run(tauri::generate_context!())

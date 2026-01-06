@@ -4,6 +4,22 @@
 
 use std::process::Command;
 
+#[cfg(target_os = "macos")]
+#[link(name = "ApplicationServices", kind = "framework")]
+extern "C" {
+    fn AXIsProcessTrusted() -> bool;
+    fn AXIsProcessTrustedWithOptions(options: core_foundation::base::CFTypeRef) -> bool;
+}
+
+#[cfg(target_os = "macos")]
+use core_foundation::base::TCFType;
+#[cfg(target_os = "macos")]
+use core_foundation::boolean::CFBoolean;
+#[cfg(target_os = "macos")]
+use core_foundation::dictionary::CFDictionary;
+#[cfg(target_os = "macos")]
+use core_foundation::string::CFString;
+
 /// Result of a quick capture operation
 #[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
 pub struct QuickCaptureData {
@@ -239,41 +255,49 @@ pub fn capture() -> Result<QuickCaptureData, String> {
     })
 }
 
-/// Check if Accessibility permissions are granted
+/// Check if Accessibility permissions are granted using macOS AXIsProcessTrusted API
+#[cfg(target_os = "macos")]
 pub fn check_accessibility_permission() -> bool {
-    let script = r#"
-        try
-            tell application "System Events"
-                set frontApp to first application process whose frontmost is true
-                return true
-            end tell
-        on error
-            return false
-        end try
-    "#;
-    
-    match run_applescript(script) {
-        Ok(result) => result.to_lowercase() == "true",
-        Err(_) => false,
+    unsafe { AXIsProcessTrusted() }
+}
+
+#[cfg(not(target_os = "macos"))]
+pub fn check_accessibility_permission() -> bool {
+    false
+}
+
+/// Request accessibility permission with prompt
+/// This will show the system dialog asking the user to grant access
+#[cfg(target_os = "macos")]
+pub fn request_accessibility_permission() -> bool {
+    unsafe {
+        let key = CFString::new("AXTrustedCheckOptionPrompt");
+        let value = CFBoolean::true_value();
+        
+        let keys = vec![key.as_CFType()];
+        let values = vec![value.as_CFType()];
+        
+        let options = CFDictionary::from_CFType_pairs(&keys.iter().zip(values.iter()).map(|(k, v)| (*k, *v)).collect::<Vec<_>>());
+        
+        AXIsProcessTrustedWithOptions(options.as_concrete_TypeRef() as _)
     }
+}
+
+#[cfg(not(target_os = "macos"))]
+pub fn request_accessibility_permission() -> bool {
+    false
 }
 
 /// Open System Preferences to Accessibility settings
 pub fn open_accessibility_settings() -> Result<(), String> {
-    let script = r#"
-        tell application "System Preferences"
-            activate
-            set current pane to pane "com.apple.preference.security"
-            reveal anchor "Privacy_Accessibility" of current pane
-        end tell
-    "#;
+    // Use the URL scheme that works on all macOS versions
+    let output = Command::new("open")
+        .arg("x-apple.systempreferences:com.apple.preference.security?Privacy_Accessibility")
+        .output()
+        .map_err(|e| format!("Failed to open System Settings: {}", e))?;
     
-    // Try System Preferences first (pre-Ventura), then System Settings (Ventura+)
-    if run_applescript(script).is_err() {
-        let new_script = r#"
-            do shell script "open 'x-apple.systempreferences:com.apple.preference.security?Privacy_Accessibility'"
-        "#;
-        run_applescript(new_script)?;
+    if !output.status.success() {
+        return Err("Failed to open System Settings".to_string());
     }
     
     Ok(())
