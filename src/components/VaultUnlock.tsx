@@ -1,5 +1,5 @@
-import { useState, useCallback, useRef, useEffect, KeyboardEvent } from 'react';
-import { motion, AnimatePresence } from 'motion/react';
+import { useState, useCallback, useRef, useEffect, KeyboardEvent } from "react";
+import { motion, AnimatePresence } from "motion/react";
 import {
   LockClosedIcon,
   EyeIcon,
@@ -7,11 +7,11 @@ import {
   ArrowLeftIcon,
   ExclamationTriangleIcon,
   FingerPrintIcon,
-} from '@heroicons/react/24/outline';
-import { useVault } from './VaultProvider';
-import { startWindowDrag } from '../lib/tauri';
+} from "@heroicons/react/24/outline";
+import { useVault } from "./VaultProvider";
+import { startWindowDrag } from "../lib/tauri";
 
-type UnlockMode = 'password' | 'recovery' | 'biometrics';
+type UnlockMode = "password" | "recovery" | "biometrics";
 
 function RecoveryPhraseInput({
   onBack,
@@ -21,14 +21,14 @@ function RecoveryPhraseInput({
   onReset: () => void;
 }) {
   const { unlockWithPhrase } = useVault();
-  const [words, setWords] = useState<string[]>(Array(12).fill(''));
+  const [words, setWords] = useState<string[]>(Array(12).fill(""));
   const [isUnlocking, setIsUnlocking] = useState(false);
-  const [error, setError] = useState('');
+  const [error, setError] = useState("");
   const [showReset, setShowReset] = useState(false);
   const inputRefs = useRef<(HTMLInputElement | null)[]>([]);
 
   const handleWordChange = (index: number, value: string) => {
-    if (value.includes(' ')) {
+    if (value.includes(" ")) {
       const pastedWords = value.trim().toLowerCase().split(/\s+/);
       if (pastedWords.length === 12) {
         setWords(pastedWords);
@@ -40,15 +40,15 @@ function RecoveryPhraseInput({
     const newWords = [...words];
     newWords[index] = value.toLowerCase().trim();
     setWords(newWords);
-    setError('');
+    setError("");
 
-    if (value && !value.includes(' ') && index < 11) {
+    if (value && !value.includes(" ") && index < 11) {
       inputRefs.current[index + 1]?.focus();
     }
   };
 
   const handleKeyDown = (index: number, e: KeyboardEvent<HTMLInputElement>) => {
-    if (e.key === 'Backspace' && !words[index] && index > 0) {
+    if (e.key === "Backspace" && !words[index] && index > 0) {
       inputRefs.current[index - 1]?.focus();
     }
   };
@@ -56,20 +56,22 @@ function RecoveryPhraseInput({
   const handleUnlock = async () => {
     const phrase = words.filter((w) => w.trim());
     if (phrase.length !== 12) {
-      setError('Please enter all 12 words');
+      setError("Please enter all 12 words");
       return;
     }
 
     setIsUnlocking(true);
-    setError('');
+    setError("");
 
     try {
       const success = await unlockWithPhrase(phrase);
       if (!success) {
-        setError('Invalid recovery phrase. Please check your words and try again.');
+        setError(
+          "Invalid recovery phrase. Please check your words and try again."
+        );
       }
     } catch {
-      setError('Failed to unlock. Please try again.');
+      setError("Failed to unlock. Please try again.");
     } finally {
       setIsUnlocking(false);
     }
@@ -96,7 +98,10 @@ function RecoveryPhraseInput({
       <div className="text-center space-y-2">
         <h2
           className="text-xl text-stone-700"
-          style={{ fontFamily: "'Newsreader', 'Georgia', serif", fontStyle: 'italic' }}
+          style={{
+            fontFamily: "'Newsreader', 'Georgia', serif",
+            fontStyle: "italic",
+          }}
         >
           Enter recovery phrase
         </h2>
@@ -112,7 +117,9 @@ function RecoveryPhraseInput({
               {index + 1}.
             </span>
             <input
-              ref={(el) => { inputRefs.current[index] = el; }}
+              ref={(el) => {
+                inputRefs.current[index] = el;
+              }}
               type="text"
               value={word}
               onChange={(e) => handleWordChange(index, e.target.value)}
@@ -141,8 +148,8 @@ function RecoveryPhraseInput({
         disabled={!canUnlock || isUnlocking}
         className={`w-full px-6 py-3 rounded-full text-sm font-medium transition-all flex items-center justify-center gap-2 ${
           canUnlock && !isUnlocking
-            ? 'bg-stone-900 text-white hover:bg-stone-800'
-            : 'bg-stone-200 text-stone-400 cursor-not-allowed'
+            ? "bg-stone-900 text-white hover:bg-stone-800"
+            : "bg-stone-200 text-stone-400 cursor-not-allowed"
         }`}
       >
         {isUnlocking ? (
@@ -167,7 +174,9 @@ function RecoveryPhraseInput({
           <div className="space-y-3">
             <div className="p-4 bg-red-50 rounded-xl border border-red-100">
               <p className="text-sm text-red-700">
-                <strong>Warning:</strong> Without your password or recovery phrase, your data cannot be recovered. Resetting will permanently delete all your saved content.
+                <strong>Warning:</strong> Without your password or recovery
+                phrase, your data cannot be recovered. Resetting will
+                permanently delete all your saved content.
               </p>
             </div>
             <div className="flex gap-2">
@@ -193,11 +202,11 @@ function RecoveryPhraseInput({
 
 export function VaultUnlock() {
   const { unlock, unlockWithBiometrics, resetVault, status } = useVault();
-  const [mode, setMode] = useState<UnlockMode>('password');
-  const [password, setPassword] = useState('');
+  const [mode, setMode] = useState<UnlockMode>("password");
+  const [password, setPassword] = useState("");
   const [showPassword, setShowPassword] = useState(false);
   const [isUnlocking, setIsUnlocking] = useState(false);
-  const [error, setError] = useState('');
+  const [error, setError] = useState("");
   const [attempts, setAttempts] = useState(0);
   const inputRef = useRef<HTMLInputElement>(null);
 
@@ -205,24 +214,24 @@ export function VaultUnlock() {
   // This avoids confusion with double prompts
 
   useEffect(() => {
-    if (mode === 'password') {
+    if (mode === "password") {
       inputRef.current?.focus();
     }
   }, [mode]);
 
   const handleBiometricsUnlock = useCallback(async () => {
     setIsUnlocking(true);
-    setError('');
+    setError("");
 
     try {
       const success = await unlockWithBiometrics();
       if (!success) {
-        setError('Touch ID failed. Please use your password.');
-        setMode('password');
+        setError("Touch ID failed. Please use your password.");
+        setMode("password");
       }
     } catch {
-      setError('Touch ID not available. Please use your password.');
-      setMode('password');
+      setError("Touch ID not available. Please use your password.");
+      setMode("password");
     } finally {
       setIsUnlocking(false);
     }
@@ -232,25 +241,25 @@ export function VaultUnlock() {
     if (!password.trim()) return;
 
     setIsUnlocking(true);
-    setError('');
+    setError("");
 
     try {
       const success = await unlock(password);
       if (!success) {
         setAttempts((prev) => prev + 1);
-        setError('Incorrect password');
-        setPassword('');
+        setError("Incorrect password");
+        setPassword("");
         inputRef.current?.focus();
       }
     } catch {
-      setError('Failed to unlock. Please try again.');
+      setError("Failed to unlock. Please try again.");
     } finally {
       setIsUnlocking(false);
     }
   }, [password, unlock]);
 
   const handleKeyDown = (e: KeyboardEvent<HTMLInputElement>) => {
-    if (e.key === 'Enter') {
+    if (e.key === "Enter") {
       handleUnlock();
     }
   };
@@ -262,12 +271,12 @@ export function VaultUnlock() {
   return (
     <div className="min-h-screen bg-stone-100 flex items-center justify-center p-6">
       {/* Draggable title bar region */}
-      <div 
+      <div
         onMouseDown={() => startWindowDrag()}
         className="fixed top-0 left-0 right-0 h-7 cursor-default select-none"
       />
       <AnimatePresence mode="wait">
-        {mode === 'password' ? (
+        {mode === "password" ? (
           <motion.div
             key="password"
             initial={{ opacity: 0, y: 20 }}
@@ -281,7 +290,10 @@ export function VaultUnlock() {
               </div>
               <h1
                 className="text-2xl text-stone-700"
-                style={{ fontFamily: "'Newsreader', 'Georgia', serif", fontStyle: 'italic' }}
+                style={{
+                  fontFamily: "'Newsreader', 'Georgia', serif",
+                  fontStyle: "italic",
+                }}
               >
                 Unlock your mind
               </h1>
@@ -294,16 +306,18 @@ export function VaultUnlock() {
               <div className="relative">
                 <input
                   ref={inputRef}
-                  type={showPassword ? 'text' : 'password'}
+                  type={showPassword ? "text" : "password"}
                   value={password}
                   onChange={(e) => {
                     setPassword(e.target.value);
-                    setError('');
+                    setError("");
                   }}
                   onKeyDown={handleKeyDown}
                   placeholder="Enter your password"
                   className={`w-full px-4 py-3 pr-12 bg-white border rounded-xl text-stone-900 placeholder:text-stone-400 focus:outline-none focus:ring-2 focus:ring-stone-900/10 transition-all ${
-                    error ? 'border-red-300 focus:border-red-300' : 'border-stone-200 focus:border-stone-300'
+                    error
+                      ? "border-red-300 focus:border-red-300"
+                      : "border-stone-200 focus:border-stone-300"
                   }`}
                 />
                 <button
@@ -334,8 +348,8 @@ export function VaultUnlock() {
                 disabled={!password || isUnlocking}
                 className={`flex-1 px-6 py-3 rounded-full text-sm font-medium transition-all flex items-center justify-center gap-2 ${
                   password && !isUnlocking
-                    ? 'bg-stone-900 text-white hover:bg-stone-800'
-                    : 'bg-stone-200 text-stone-400 cursor-not-allowed'
+                    ? "bg-stone-900 text-white hover:bg-stone-800"
+                    : "bg-stone-200 text-stone-400 cursor-not-allowed"
                 }`}
               >
                 {isUnlocking ? (
@@ -365,11 +379,11 @@ export function VaultUnlock() {
             {attempts >= 2 && (
               <motion.div
                 initial={{ opacity: 0, height: 0 }}
-                animate={{ opacity: 1, height: 'auto' }}
+                animate={{ opacity: 1, height: "auto" }}
                 className="text-center"
               >
                 <button
-                  onClick={() => setMode('recovery')}
+                  onClick={() => setMode("recovery")}
                   className="text-sm text-stone-500 hover:text-stone-700 transition-colors"
                 >
                   Forgot your password? Use recovery phrase
@@ -379,7 +393,7 @@ export function VaultUnlock() {
 
             {attempts < 2 && (
               <button
-                onClick={() => setMode('recovery')}
+                onClick={() => setMode("recovery")}
                 className="w-full text-sm text-stone-400 hover:text-stone-600 transition-colors"
               >
                 Use recovery phrase instead
@@ -389,7 +403,7 @@ export function VaultUnlock() {
         ) : (
           <RecoveryPhraseInput
             key="recovery"
-            onBack={() => setMode('password')}
+            onBack={() => setMode("password")}
             onReset={handleReset}
           />
         )}
@@ -397,4 +411,3 @@ export function VaultUnlock() {
     </div>
   );
 }
-
