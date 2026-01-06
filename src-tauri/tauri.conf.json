@@ -39,6 +39,15 @@
     ],
     "macOS": {
       "minimumSystemVersion": "10.13"
+    },
+    "createUpdaterArtifacts": true
+  },
+  "plugins": {
+    "updater": {
+      "pubkey": "UPDATER_PUBKEY_PLACEHOLDER",
+      "endpoints": [
+        "https://github.com/antoinepirard/Atlas/releases/latest/download/latest.json"
+      ]
     }
   }
 }

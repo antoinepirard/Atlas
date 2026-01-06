@@ -9,6 +9,7 @@ import { PreviewModal } from './PreviewModal';
 import { SettingsModal } from './SettingsModal';
 import { TypeFilter } from './TypeFilter';
 import { PasteIndicator } from './PasteIndicator';
+import { UpdateToast } from './UpdateToast';
 import { useVault } from './VaultProvider';
 import { useMymind } from '../hooks/useMymind';
 import { startWindowDrag } from '../lib/tauri';
@@ -237,6 +238,8 @@ export function MymindApp() {
         isOpen={isSettingsOpen}
         onClose={() => setIsSettingsOpen(false)}
       />
+
+      <UpdateToast onOpenSettings={() => setIsSettingsOpen(true)} />
     </div>
   );
 }

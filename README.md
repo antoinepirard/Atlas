@@ -37,11 +37,44 @@ pnpm tauri build
 
 The built app will be in `src-tauri/target/release/bundle/`.
 
+## Auto-Updates
+
+Atlas supports automatic updates. When a new version is released, users will see an in-app toast notification prompting them to update. Users can also manually check for updates via **Atlas → Check for Updates...** in the menu bar.
+
+### Setting Up Auto-Updates for Development
+
+1. **Generate a signing key pair:**
+
+   ```bash
+   pnpm tauri signer generate -w ~/.tauri/atlas.key
+   ```
+
+   This creates:
+
+   - `~/.tauri/atlas.key` (private key - keep this secret!)
+   - `~/.tauri/atlas.key.pub` (public key)
+
+2. **Update the public key in `src-tauri/tauri.conf.json`:**
+   Replace `UPDATER_PUBKEY_PLACEHOLDER` with your public key content.
+
+3. **Set up GitHub Secrets** (for CI/CD releases):
+   - `TAURI_SIGNING_PRIVATE_KEY`: Content of your private key file
+   - `TAURI_SIGNING_PRIVATE_KEY_PASSWORD`: Password you used when generating the key
+
+### How It Works
+
+- The app checks for updates 5 seconds after launch
+- Update metadata is fetched from GitHub Releases (`latest.json`)
+- Updates are signed with EdDSA to ensure authenticity
+- Users can postpone updates or install immediately
+- After download, a restart is required to apply the update
+
 ## Configuration
 
 ### OpenAI API Key
 
 The app uses OpenAI for:
+
 - Generating tags and summaries
 - Creating embeddings for semantic search
 
@@ -50,6 +83,7 @@ Set your API key through the app settings, or set the `OPENAI_API_KEY` environme
 ## Data Location
 
 Your encrypted vault is stored at:
+
 ```
 ~/Library/Application Support/mymind/vault.db
 ```
@@ -68,4 +102,3 @@ Your encrypted vault is stored at:
 - **Database**: SQLite (via rusqlite)
 - **Encryption**: aes-gcm, pbkdf2 (Rust crates)
 - **AI**: OpenAI API (gpt-4o-mini, text-embedding-3-small)
-
