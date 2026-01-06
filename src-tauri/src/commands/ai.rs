@@ -1,5 +1,7 @@
 use serde::{Deserialize, Serialize};
 use crate::commands::items::ItemType;
+use std::fs;
+use std::path::PathBuf;
 
 /// OpenAI API response structures
 #[derive(Debug, Deserialize)]
@@ -43,12 +45,30 @@ pub struct UrlMetadata {
     pub image: Option<String>,
 }
 
-/// Get OpenAI API key from keychain or environment
+/// Get the path for storing the API key
+fn get_api_key_path() -> Result<PathBuf, String> {
+    let app_dir = dirs::data_dir()
+        .ok_or_else(|| "Could not find app data directory".to_string())?
+        .join("atlas");
+    
+    // Ensure directory exists
+    fs::create_dir_all(&app_dir)
+        .map_err(|e| format!("Failed to create app directory: {}", e))?;
+    
+    Ok(app_dir.join(".openai_key"))
+}
+
+/// Get OpenAI API key from file or environment
 fn get_api_key() -> Result<String, String> {
-    // Try keychain first
-    if let Ok(entry) = keyring::Entry::new("mymind", "openai_api_key") {
-        if let Ok(key) = entry.get_password() {
-            return Ok(key);
+    // Try file first
+    if let Ok(path) = get_api_key_path() {
+        if path.exists() {
+            if let Ok(key) = fs::read_to_string(&path) {
+                let key = key.trim().to_string();
+                if !key.is_empty() {
+                    return Ok(key);
+                }
+            }
         }
     }
     
@@ -57,14 +77,22 @@ fn get_api_key() -> Result<String, String> {
         .map_err(|_| "OpenAI API key not found. Please set it in settings.".to_string())
 }
 
-/// Save OpenAI API key to keychain
+/// Save OpenAI API key to file
 #[tauri::command]
 pub fn save_api_key(api_key: String) -> Result<(), String> {
-    let entry = keyring::Entry::new("mymind", "openai_api_key")
-        .map_err(|e| format!("Failed to access keychain: {}", e))?;
+    let path = get_api_key_path()?;
     
-    entry.set_password(&api_key)
+    fs::write(&path, api_key.trim())
         .map_err(|e| format!("Failed to save API key: {}", e))?;
+    
+    // Set restrictive permissions on Unix systems
+    #[cfg(unix)]
+    {
+        use std::os::unix::fs::PermissionsExt;
+        let perms = fs::Permissions::from_mode(0o600);
+        fs::set_permissions(&path, perms)
+            .map_err(|e| format!("Failed to set file permissions: {}", e))?;
+    }
     
     Ok(())
 }
