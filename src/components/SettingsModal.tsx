@@ -7,8 +7,10 @@ import {
   FolderIcon,
   CheckIcon,
   ExclamationTriangleIcon,
+  FingerPrintIcon,
 } from '@heroicons/react/24/outline';
 import * as tauri from '../lib/tauri';
+import { useVault } from './VaultProvider';
 
 interface SettingsModalProps {
   isOpen: boolean;
@@ -16,12 +18,14 @@ interface SettingsModalProps {
 }
 
 export function SettingsModal({ isOpen, onClose }: SettingsModalProps) {
+  const { status, enableBiometrics, disableBiometrics } = useVault();
   const [apiKey, setApiKey] = useState('');
   const [maskedApiKey, setMaskedApiKey] = useState<string | null>(null);
   const [showApiKey, setShowApiKey] = useState(false);
   const [storagePath, setStoragePath] = useState('');
   const [isSavingApiKey, setIsSavingApiKey] = useState(false);
   const [isMigrating, setIsMigrating] = useState(false);
+  const [isTogglingBiometrics, setIsTogglingBiometrics] = useState(false);
   const [apiKeySaved, setApiKeySaved] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -88,6 +92,22 @@ export function SettingsModal({ isOpen, onClose }: SettingsModalProps) {
       onClose();
     }
   }, [onClose]);
+
+  const handleToggleBiometrics = useCallback(async () => {
+    setIsTogglingBiometrics(true);
+    setError(null);
+    try {
+      if (status.biometrics_enabled) {
+        await disableBiometrics();
+      } else {
+        await enableBiometrics();
+      }
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Failed to update Touch ID setting');
+    } finally {
+      setIsTogglingBiometrics(false);
+    }
+  }, [status.biometrics_enabled, enableBiometrics, disableBiometrics]);
 
   return (
     <AnimatePresence>
@@ -220,6 +240,56 @@ export function SettingsModal({ isOpen, onClose }: SettingsModalProps) {
                     Where your encrypted vault is stored. Changing this will move your data.
                   </p>
                 </div>
+
+                {/* Touch ID */}
+                {status.biometrics_available && (
+                  <div className="space-y-2">
+                    <label className="block text-sm font-medium text-stone-700">
+                      Touch ID
+                    </label>
+                    <div className="flex items-center justify-between p-3 bg-stone-50 border border-stone-200 rounded-lg">
+                      <div className="flex items-center gap-3">
+                        <div className="w-10 h-10 rounded-full bg-gradient-to-br from-amber-100 to-orange-100 flex items-center justify-center">
+                          <FingerPrintIcon className="w-5 h-5 text-amber-600" />
+                        </div>
+                        <div>
+                          <p className="text-sm font-medium text-stone-700">
+                            Unlock with Touch ID
+                          </p>
+                          <p className="text-xs text-stone-500">
+                            {status.biometrics_enabled 
+                              ? 'Touch ID is enabled for quick unlock' 
+                              : 'Use your fingerprint to unlock'}
+                          </p>
+                        </div>
+                      </div>
+                      <button
+                        onClick={handleToggleBiometrics}
+                        disabled={isTogglingBiometrics}
+                        className={`relative w-12 h-7 rounded-full transition-colors ${
+                          status.biometrics_enabled 
+                            ? 'bg-amber-500' 
+                            : 'bg-stone-300'
+                        }`}
+                      >
+                        {isTogglingBiometrics ? (
+                          <span className="absolute inset-0 flex items-center justify-center">
+                            <span className="w-4 h-4 border-2 border-white/50 border-t-white rounded-full animate-spin" />
+                          </span>
+                        ) : (
+                          <span 
+                            className={`absolute top-1 w-5 h-5 bg-white rounded-full shadow transition-transform ${
+                              status.biometrics_enabled ? 'translate-x-6' : 'translate-x-1'
+                            }`}
+                          />
+                        )}
+                      </button>
+                    </div>
+                    <p className="text-xs text-stone-400">
+                      Your encryption key is securely stored in the macOS Keychain.
+                    </p>
+                  </div>
+                )}
               </div>
 
               {/* Footer */}

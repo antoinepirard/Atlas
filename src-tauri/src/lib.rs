@@ -1,3 +1,4 @@
+pub mod biometrics;
 pub mod commands;
 pub mod crypto;
 pub mod db;
@@ -23,6 +24,12 @@ pub fn run() {
             commands::reset_vault,
             commands::get_storage_path,
             commands::set_storage_path,
+            // Biometrics commands
+            commands::is_biometrics_available,
+            commands::is_biometrics_enabled,
+            commands::enable_biometrics,
+            commands::disable_biometrics,
+            commands::unlock_with_biometrics,
             // Item commands
             commands::get_all_items,
             commands::add_item,

@@ -6,11 +6,12 @@ import {
   EyeSlashIcon,
   ArrowLeftIcon,
   ExclamationTriangleIcon,
+  FingerPrintIcon,
 } from '@heroicons/react/24/outline';
 import { useVault } from './VaultProvider';
 import { startWindowDrag } from '../lib/tauri';
 
-type UnlockMode = 'password' | 'recovery';
+type UnlockMode = 'password' | 'recovery' | 'biometrics';
 
 function RecoveryPhraseInput({
   onBack,
@@ -191,18 +192,47 @@ function RecoveryPhraseInput({
 }
 
 export function VaultUnlock() {
-  const { unlock, resetVault } = useVault();
+  const { unlock, unlockWithBiometrics, resetVault, status } = useVault();
   const [mode, setMode] = useState<UnlockMode>('password');
   const [password, setPassword] = useState('');
   const [showPassword, setShowPassword] = useState(false);
   const [isUnlocking, setIsUnlocking] = useState(false);
   const [error, setError] = useState('');
   const [attempts, setAttempts] = useState(0);
+  const [biometricsAttempted, setBiometricsAttempted] = useState(false);
   const inputRef = useRef<HTMLInputElement>(null);
 
+  // Auto-trigger Touch ID if enabled
   useEffect(() => {
-    inputRef.current?.focus();
-  }, []);
+    if (status.biometrics_enabled && !biometricsAttempted) {
+      setBiometricsAttempted(true);
+      handleBiometricsUnlock();
+    }
+  }, [status.biometrics_enabled]);
+
+  useEffect(() => {
+    if (mode === 'password') {
+      inputRef.current?.focus();
+    }
+  }, [mode]);
+
+  const handleBiometricsUnlock = useCallback(async () => {
+    setIsUnlocking(true);
+    setError('');
+
+    try {
+      const success = await unlockWithBiometrics();
+      if (!success) {
+        setError('Touch ID failed. Please use your password.');
+        setMode('password');
+      }
+    } catch {
+      setError('Touch ID not available. Please use your password.');
+      setMode('password');
+    } finally {
+      setIsUnlocking(false);
+    }
+  }, [unlockWithBiometrics]);
 
   const handleUnlock = useCallback(async () => {
     if (!password.trim()) return;
@@ -302,26 +332,41 @@ export function VaultUnlock() {
               )}
             </div>
 
-            <motion.button
-              whileHover={{ scale: password && !isUnlocking ? 1.02 : 1 }}
-              whileTap={{ scale: password && !isUnlocking ? 0.98 : 1 }}
-              onClick={handleUnlock}
-              disabled={!password || isUnlocking}
-              className={`w-full px-6 py-3 rounded-full text-sm font-medium transition-all flex items-center justify-center gap-2 ${
-                password && !isUnlocking
-                  ? 'bg-stone-900 text-white hover:bg-stone-800'
-                  : 'bg-stone-200 text-stone-400 cursor-not-allowed'
-              }`}
-            >
-              {isUnlocking ? (
-                <>
-                  <div className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin" />
-                  <span>Unlocking...</span>
-                </>
-              ) : (
-                <span>Unlock</span>
+            <div className="flex gap-3">
+              <motion.button
+                whileHover={{ scale: password && !isUnlocking ? 1.02 : 1 }}
+                whileTap={{ scale: password && !isUnlocking ? 0.98 : 1 }}
+                onClick={handleUnlock}
+                disabled={!password || isUnlocking}
+                className={`flex-1 px-6 py-3 rounded-full text-sm font-medium transition-all flex items-center justify-center gap-2 ${
+                  password && !isUnlocking
+                    ? 'bg-stone-900 text-white hover:bg-stone-800'
+                    : 'bg-stone-200 text-stone-400 cursor-not-allowed'
+                }`}
+              >
+                {isUnlocking ? (
+                  <>
+                    <div className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin" />
+                    <span>Unlocking...</span>
+                  </>
+                ) : (
+                  <span>Unlock</span>
+                )}
+              </motion.button>
+
+              {status.biometrics_enabled && (
+                <motion.button
+                  whileHover={{ scale: !isUnlocking ? 1.05 : 1 }}
+                  whileTap={{ scale: !isUnlocking ? 0.95 : 1 }}
+                  onClick={handleBiometricsUnlock}
+                  disabled={isUnlocking}
+                  className="p-3 rounded-full bg-stone-100 hover:bg-stone-200 text-stone-600 transition-colors"
+                  title="Unlock with Touch ID"
+                >
+                  <FingerPrintIcon className="w-6 h-6" />
+                </motion.button>
               )}
-            </motion.button>
+            </div>
 
             {attempts >= 2 && (
               <motion.div

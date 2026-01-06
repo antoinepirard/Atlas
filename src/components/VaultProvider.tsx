@@ -16,6 +16,9 @@ interface VaultContextValue {
   createVault: (password: string) => Promise<string[]>;
   unlock: (password: string) => Promise<boolean>;
   unlockWithPhrase: (phrase: string[]) => Promise<boolean>;
+  unlockWithBiometrics: () => Promise<boolean>;
+  enableBiometrics: () => Promise<void>;
+  disableBiometrics: () => Promise<void>;
   lock: () => Promise<void>;
   setAutoLockMinutes: (minutes: number) => Promise<void>;
   resetVault: () => Promise<void>;
@@ -41,6 +44,8 @@ export function VaultProvider({ children }: VaultProviderProps) {
     exists: false,
     unlocked: false,
     auto_lock_minutes: 15,
+    biometrics_available: false,
+    biometrics_enabled: false,
   });
   const [isLoading, setIsLoading] = useState(true);
   const lastActivityRef = useRef<number>(Date.now());
@@ -128,6 +133,25 @@ export function VaultProvider({ children }: VaultProviderProps) {
     return success;
   }, [refreshStatus]);
 
+  const unlockWithBiometrics = useCallback(async (): Promise<boolean> => {
+    const success = await tauri.unlockWithBiometrics();
+    if (success) {
+      await refreshStatus();
+      lastActivityRef.current = Date.now();
+    }
+    return success;
+  }, [refreshStatus]);
+
+  const enableBiometrics = useCallback(async (): Promise<void> => {
+    await tauri.enableBiometrics();
+    await refreshStatus();
+  }, [refreshStatus]);
+
+  const disableBiometrics = useCallback(async (): Promise<void> => {
+    await tauri.disableBiometrics();
+    await refreshStatus();
+  }, [refreshStatus]);
+
   const lock = useCallback(async () => {
     await tauri.lockVault();
     await refreshStatus();
@@ -151,6 +175,9 @@ export function VaultProvider({ children }: VaultProviderProps) {
         createVault,
         unlock,
         unlockWithPhrase,
+        unlockWithBiometrics,
+        enableBiometrics,
+        disableBiometrics,
         lock,
         setAutoLockMinutes,
         resetVault,

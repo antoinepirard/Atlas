@@ -39,6 +39,27 @@ export async function resetVault(): Promise<void> {
   return invoke('reset_vault');
 }
 
+// Biometrics commands
+export async function isBiometricsAvailable(): Promise<boolean> {
+  return invoke('is_biometrics_available');
+}
+
+export async function isBiometricsEnabled(): Promise<boolean> {
+  return invoke('is_biometrics_enabled');
+}
+
+export async function enableBiometrics(): Promise<void> {
+  return invoke('enable_biometrics');
+}
+
+export async function disableBiometrics(): Promise<void> {
+  return invoke('disable_biometrics');
+}
+
+export async function unlockWithBiometrics(): Promise<boolean> {
+  return invoke('unlock_with_biometrics');
+}
+
 // Item commands
 export async function getAllItems(): Promise<MymindItem[]> {
   return invoke('get_all_items');

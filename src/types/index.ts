@@ -33,6 +33,8 @@ export interface VaultStatus {
   exists: boolean;
   unlocked: boolean;
   auto_lock_minutes: number;
+  biometrics_available: boolean;
+  biometrics_enabled: boolean;
 }
 
 export interface AIProcessResult {
