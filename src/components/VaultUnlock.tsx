@@ -199,16 +199,10 @@ export function VaultUnlock() {
   const [isUnlocking, setIsUnlocking] = useState(false);
   const [error, setError] = useState('');
   const [attempts, setAttempts] = useState(0);
-  const [biometricsAttempted, setBiometricsAttempted] = useState(false);
   const inputRef = useRef<HTMLInputElement>(null);
 
-  // Auto-trigger Touch ID if enabled (but not if user just manually locked)
-  useEffect(() => {
-    if (status.biometrics_enabled && !biometricsAttempted && !wasManuallyLocked) {
-      setBiometricsAttempted(true);
-      handleBiometricsUnlock();
-    }
-  }, [status.biometrics_enabled, wasManuallyLocked]);
+  // Don't auto-trigger - let user explicitly click the Touch ID button
+  // This avoids confusion with double prompts
 
   useEffect(() => {
     if (mode === 'password') {
