@@ -192,7 +192,7 @@ function RecoveryPhraseInput({
 }
 
 export function VaultUnlock() {
-  const { unlock, unlockWithBiometrics, resetVault, status, wasManuallyLocked } = useVault();
+  const { unlock, unlockWithBiometrics, resetVault, status } = useVault();
   const [mode, setMode] = useState<UnlockMode>('password');
   const [password, setPassword] = useState('');
   const [showPassword, setShowPassword] = useState(false);
