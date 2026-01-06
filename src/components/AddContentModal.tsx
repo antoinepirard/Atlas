@@ -105,13 +105,13 @@ export function AddContentModal({ isOpen, onClose, onAddContent, onUploadImage }
   return (
     <AnimatePresence>
       {isOpen && (
-        <>
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
           <motion.div
             initial={{ opacity: 0 }}
             animate={{ opacity: 1 }}
             exit={{ opacity: 0 }}
             onClick={onClose}
-            className="fixed inset-0 bg-stone-900/20 backdrop-blur-sm z-50"
+            className="absolute inset-0 bg-stone-900/20 backdrop-blur-sm"
           />
 
           <motion.div
@@ -119,7 +119,7 @@ export function AddContentModal({ isOpen, onClose, onAddContent, onUploadImage }
             animate={{ opacity: 1, scale: 1, y: 0 }}
             exit={{ opacity: 0, scale: 0.95, y: 20 }}
             transition={{ duration: 0.2 }}
-            className="fixed left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 w-full max-w-lg z-50 p-4"
+            className="relative w-full max-w-lg"
           >
             <div
               className={`bg-white rounded-2xl shadow-2xl shadow-stone-900/10 overflow-hidden transition-all ${
@@ -252,7 +252,7 @@ export function AddContentModal({ isOpen, onClose, onAddContent, onUploadImage }
               </div>
             </div>
           </motion.div>
-        </>
+        </div>
       )}
     </AnimatePresence>
   );

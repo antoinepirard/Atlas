@@ -83,7 +83,7 @@ export async function getItemCount(): Promise<number> {
 
 // AI commands
 export async function saveApiKey(apiKey: string): Promise<void> {
-  return invoke('save_api_key', { api_key: apiKey });
+  return invoke('save_api_key', { apiKey });
 }
 
 export async function hasApiKey(): Promise<boolean> {
