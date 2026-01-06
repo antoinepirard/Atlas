@@ -1,4 +1,4 @@
-import { useMemo } from 'react';
+import { useMemo, useEffect } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
 import { XMarkIcon, ArrowTopRightOnSquareIcon, LinkIcon } from '@heroicons/react/24/outline';
 import type { MymindItem } from '../types';
@@ -63,6 +63,19 @@ export function PreviewModal({ item, isOpen, onClose }: PreviewModalProps) {
     if (!item || item.type !== 'url') return null;
     return getYouTubeVideoId(item.content);
   }, [item]);
+
+  // Handle Escape key to close modal
+  useEffect(() => {
+    if (!isOpen) return;
+    
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') {
+        onClose();
+      }
+    };
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, [isOpen, onClose]);
   
   if (!item) return null;
 
@@ -84,7 +97,7 @@ export function PreviewModal({ item, isOpen, onClose }: PreviewModalProps) {
             initial={{ opacity: 0, scale: 0.95 }}
             animate={{ opacity: 1, scale: 1 }}
             exit={{ opacity: 0, scale: 0.95 }}
-            className="fixed inset-4 z-50 flex"
+            className="fixed top-10 left-6 right-6 bottom-6 z-50 flex"
           >
             <div className="w-full max-w-[1600px] h-full mx-auto flex rounded-2xl overflow-hidden bg-stone-100 shadow-2xl">
               {/* Left: Content Preview */}
