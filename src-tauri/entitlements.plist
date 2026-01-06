@@ -1,0 +1,19 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+    <!-- Allow the app to read files selected by the user -->
+    <key>com.apple.security.files.user-selected.read-only</key>
+    <true/>
+    
+    <!-- Network access for API calls -->
+    <key>com.apple.security.network.client</key>
+    <true/>
+    
+    <!-- Allow accessibility features for capturing selected text -->
+    <!-- Note: Users will still need to manually grant Accessibility permission in System Settings -->
+    <key>com.apple.security.automation.apple-events</key>
+    <true/>
+</dict>
+</plist>
+

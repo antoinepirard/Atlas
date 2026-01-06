@@ -1,6 +1,7 @@
 import { useState, useCallback, useEffect } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
 import { PlusIcon, LockClosedIcon, Cog6ToothIcon } from '@heroicons/react/24/outline';
+import { listen } from '@tauri-apps/api/event';
 import { SearchBar } from './SearchBar';
 import { MasonryGrid } from './MasonryGrid';
 import { ItemCard } from './ItemCard';
@@ -10,6 +11,7 @@ import { SettingsModal } from './SettingsModal';
 import { TypeFilter } from './TypeFilter';
 import { PasteIndicator } from './PasteIndicator';
 import { UpdateToast } from './UpdateToast';
+import { QuickCaptureModal, QuickCaptureData } from './QuickCaptureModal';
 import { useVault } from './VaultProvider';
 import { useMymind } from '../hooks/useMymind';
 import { startWindowDrag } from '../lib/tauri';
@@ -21,6 +23,8 @@ export function MymindApp() {
   const [isSettingsOpen, setIsSettingsOpen] = useState(false);
   const [isPasting, setIsPasting] = useState(false);
   const [selectedItem, setSelectedItem] = useState<MymindItem | null>(null);
+  const [isQuickCaptureOpen, setIsQuickCaptureOpen] = useState(false);
+  const [quickCaptureData, setQuickCaptureData] = useState<QuickCaptureData | null>(null);
   const {
     items,
     isLoading,
@@ -43,6 +47,31 @@ export function MymindApp() {
     await uploadImage(file);
     setIsAddModalOpen(false);
   }, [uploadImage]);
+
+  // Quick capture handlers
+  const handleQuickCaptureSaveUrl = useCallback(async (url: string) => {
+    await addContent(url);
+  }, [addContent]);
+
+  const handleQuickCaptureSaveNote = useCallback(async (text: string, sourceUrl?: string) => {
+    // If there's a source URL, append it as a reference
+    const contentWithSource = sourceUrl 
+      ? `${text}\n\n---\nSource: ${sourceUrl}`
+      : text;
+    await addContent(contentWithSource);
+  }, [addContent]);
+
+  // Listen for quick-capture events from Tauri
+  useEffect(() => {
+    const unlisten = listen<QuickCaptureData>('quick-capture', (event) => {
+      setQuickCaptureData(event.payload);
+      setIsQuickCaptureOpen(true);
+    });
+
+    return () => {
+      unlisten.then(fn => fn());
+    };
+  }, []);
 
   // Global paste handler
   useEffect(() => {
@@ -237,6 +266,17 @@ export function MymindApp() {
       <SettingsModal
         isOpen={isSettingsOpen}
         onClose={() => setIsSettingsOpen(false)}
+      />
+
+      <QuickCaptureModal
+        isOpen={isQuickCaptureOpen}
+        captureData={quickCaptureData}
+        onClose={() => {
+          setIsQuickCaptureOpen(false);
+          setQuickCaptureData(null);
+        }}
+        onSaveUrl={handleQuickCaptureSaveUrl}
+        onSaveNote={handleQuickCaptureSaveNote}
       />
 
       <UpdateToast onOpenSettings={() => setIsSettingsOpen(true)} />

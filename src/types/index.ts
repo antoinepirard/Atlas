@@ -49,3 +49,12 @@ export interface UrlMetadata {
   image: string | null;
 }
 
+/** Data from quick capture (global shortcut) */
+export interface QuickCaptureData {
+  app_name: string;
+  is_browser: boolean;
+  url: string | null;
+  page_title: string | null;
+  selected_text: string | null;
+}
+

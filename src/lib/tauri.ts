@@ -139,3 +139,12 @@ export async function startWindowDrag(): Promise<void> {
   await getCurrentWindow().startDragging();
 }
 
+// Accessibility commands
+export async function checkAccessibilityPermission(): Promise<boolean> {
+  return invoke('check_accessibility_permission');
+}
+
+export async function openAccessibilitySettings(): Promise<void> {
+  return invoke('open_accessibility_settings');
+}
+

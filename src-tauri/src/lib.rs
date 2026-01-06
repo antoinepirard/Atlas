@@ -1,13 +1,16 @@
 pub mod biometrics;
+pub mod capture;
 pub mod commands;
 pub mod crypto;
 pub mod db;
 
+use capture::QuickCaptureData;
 use commands::vault::VaultState;
 use tauri::{
     menu::{Menu, MenuItem, PredefinedMenuItem, Submenu},
     Emitter, Manager,
 };
+use tauri_plugin_global_shortcut::{Code, GlobalShortcutExt, Modifiers, Shortcut};
 
 fn create_app_menu(app: &tauri::AppHandle) -> Result<Menu<tauri::Wry>, tauri::Error> {
     let app_menu = Submenu::with_items(
@@ -70,19 +73,69 @@ fn create_app_menu(app: &tauri::AppHandle) -> Result<Menu<tauri::Wry>, tauri::Er
     Menu::with_items(app, &[&app_menu, &edit_menu, &view_menu, &window_menu])
 }
 
+/// Trigger quick capture from any application
+#[tauri::command]
+fn trigger_quick_capture() -> Result<QuickCaptureData, String> {
+    capture::capture()
+}
+
+/// Check if Accessibility permissions are granted
+#[tauri::command]
+fn check_accessibility_permission() -> bool {
+    capture::check_accessibility_permission()
+}
+
+/// Open System Preferences to Accessibility settings
+#[tauri::command]
+fn open_accessibility_settings() -> Result<(), String> {
+    capture::open_accessibility_settings()
+}
+
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
     let vault_state = VaultState::new().expect("Failed to initialize vault state");
+    
+    // Define the quick capture shortcut: Cmd+Shift+S
+    let quick_capture_shortcut = Shortcut::new(Some(Modifiers::SUPER | Modifiers::SHIFT), Code::KeyS);
     
     tauri::Builder::default()
         .plugin(tauri_plugin_shell::init())
         .plugin(tauri_plugin_dialog::init())
         .plugin(tauri_plugin_updater::Builder::new().build())
         .plugin(tauri_plugin_process::init())
+        .plugin(
+            tauri_plugin_global_shortcut::Builder::new()
+                .with_handler(move |app, shortcut, event| {
+                    if shortcut == &quick_capture_shortcut {
+                        if event.state == tauri_plugin_global_shortcut::ShortcutState::Pressed {
+                            // Perform the capture
+                            match capture::capture() {
+                                Ok(data) => {
+                                    // Show the main window
+                                    if let Some(window) = app.get_webview_window("main") {
+                                        let _ = window.show();
+                                        let _ = window.set_focus();
+                                        // Emit the capture data to the frontend
+                                        let _ = window.emit("quick-capture", data);
+                                    }
+                                }
+                                Err(e) => {
+                                    eprintln!("Quick capture failed: {}", e);
+                                }
+                            }
+                        }
+                    }
+                })
+                .build(),
+        )
         .manage(vault_state)
-        .setup(|app| {
+        .setup(move |app| {
             let menu = create_app_menu(app.handle())?;
             app.set_menu(menu)?;
+            
+            // Register the global shortcut
+            app.global_shortcut().register(quick_capture_shortcut)?;
+            
             Ok(())
         })
         .on_menu_event(|app, event| {
@@ -138,6 +191,10 @@ pub fn run() {
             commands::process_with_ai,
             commands::get_search_embedding,
             commands::fetch_url_metadata,
+            // Quick capture commands
+            trigger_quick_capture,
+            check_accessibility_permission,
+            open_accessibility_settings,
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");
