@@ -192,7 +192,7 @@ function RecoveryPhraseInput({
 }
 
 export function VaultUnlock() {
-  const { unlock, unlockWithBiometrics, resetVault, status } = useVault();
+  const { unlock, unlockWithBiometrics, resetVault, status, wasManuallyLocked } = useVault();
   const [mode, setMode] = useState<UnlockMode>('password');
   const [password, setPassword] = useState('');
   const [showPassword, setShowPassword] = useState(false);
@@ -202,13 +202,13 @@ export function VaultUnlock() {
   const [biometricsAttempted, setBiometricsAttempted] = useState(false);
   const inputRef = useRef<HTMLInputElement>(null);
 
-  // Auto-trigger Touch ID if enabled
+  // Auto-trigger Touch ID if enabled (but not if user just manually locked)
   useEffect(() => {
-    if (status.biometrics_enabled && !biometricsAttempted) {
+    if (status.biometrics_enabled && !biometricsAttempted && !wasManuallyLocked) {
       setBiometricsAttempted(true);
       handleBiometricsUnlock();
     }
-  }, [status.biometrics_enabled]);
+  }, [status.biometrics_enabled, wasManuallyLocked]);
 
   useEffect(() => {
     if (mode === 'password') {

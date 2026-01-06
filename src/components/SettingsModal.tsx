@@ -266,7 +266,7 @@ export function SettingsModal({ isOpen, onClose }: SettingsModalProps) {
                       <button
                         onClick={handleToggleBiometrics}
                         disabled={isTogglingBiometrics}
-                        className={`relative w-12 h-7 rounded-full transition-colors ${
+                        className={`relative w-11 h-6 rounded-full transition-colors ${
                           status.biometrics_enabled 
                             ? 'bg-amber-500' 
                             : 'bg-stone-300'
@@ -274,12 +274,12 @@ export function SettingsModal({ isOpen, onClose }: SettingsModalProps) {
                       >
                         {isTogglingBiometrics ? (
                           <span className="absolute inset-0 flex items-center justify-center">
-                            <span className="w-4 h-4 border-2 border-white/50 border-t-white rounded-full animate-spin" />
+                            <span className="w-3 h-3 border-2 border-white/50 border-t-white rounded-full animate-spin" />
                           </span>
                         ) : (
                           <span 
-                            className={`absolute top-1 w-5 h-5 bg-white rounded-full shadow transition-transform ${
-                              status.biometrics_enabled ? 'translate-x-6' : 'translate-x-1'
+                            className={`absolute top-0.5 left-0.5 w-5 h-5 bg-white rounded-full shadow-sm transition-transform duration-200 ${
+                              status.biometrics_enabled ? 'translate-x-5' : 'translate-x-0'
                             }`}
                           />
                         )}

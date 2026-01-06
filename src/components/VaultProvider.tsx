@@ -13,6 +13,7 @@ import type { VaultStatus } from '../types';
 interface VaultContextValue {
   status: VaultStatus;
   isLoading: boolean;
+  wasManuallyLocked: boolean;
   createVault: (password: string) => Promise<string[]>;
   unlock: (password: string) => Promise<boolean>;
   unlockWithPhrase: (phrase: string[]) => Promise<boolean>;
@@ -48,6 +49,7 @@ export function VaultProvider({ children }: VaultProviderProps) {
     biometrics_enabled: false,
   });
   const [isLoading, setIsLoading] = useState(true);
+  const [wasManuallyLocked, setWasManuallyLocked] = useState(false);
   const lastActivityRef = useRef<number>(Date.now());
   const autoLockTimerRef = useRef<number | null>(null);
 
@@ -118,6 +120,7 @@ export function VaultProvider({ children }: VaultProviderProps) {
   const unlock = useCallback(async (password: string): Promise<boolean> => {
     const success = await tauri.unlockVault(password);
     if (success) {
+      setWasManuallyLocked(false);
       await refreshStatus();
       lastActivityRef.current = Date.now();
     }
@@ -127,6 +130,7 @@ export function VaultProvider({ children }: VaultProviderProps) {
   const unlockWithPhrase = useCallback(async (phrase: string[]): Promise<boolean> => {
     const success = await tauri.unlockWithPhrase(phrase);
     if (success) {
+      setWasManuallyLocked(false);
       await refreshStatus();
       lastActivityRef.current = Date.now();
     }
@@ -136,6 +140,7 @@ export function VaultProvider({ children }: VaultProviderProps) {
   const unlockWithBiometrics = useCallback(async (): Promise<boolean> => {
     const success = await tauri.unlockWithBiometrics();
     if (success) {
+      setWasManuallyLocked(false);
       await refreshStatus();
       lastActivityRef.current = Date.now();
     }
@@ -153,6 +158,7 @@ export function VaultProvider({ children }: VaultProviderProps) {
   }, [refreshStatus]);
 
   const lock = useCallback(async () => {
+    setWasManuallyLocked(true);
     await tauri.lockVault();
     await refreshStatus();
   }, [refreshStatus]);
@@ -172,6 +178,7 @@ export function VaultProvider({ children }: VaultProviderProps) {
       value={{
         status,
         isLoading,
+        wasManuallyLocked,
         createVault,
         unlock,
         unlockWithPhrase,

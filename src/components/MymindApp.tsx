@@ -130,7 +130,7 @@ export function MymindApp() {
             <motion.button
               whileHover={{ scale: 1.05 }}
               whileTap={{ scale: 0.95 }}
-              onClick={lock}
+              onClick={() => lock()}
               className="group relative p-2 text-stone-400 hover:text-stone-600 transition-colors"
               title={`Lock vault (auto-locks in ${status.auto_lock_minutes} min)`}
             >
