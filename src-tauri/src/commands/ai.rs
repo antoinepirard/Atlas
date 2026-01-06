@@ -47,9 +47,9 @@ pub struct UrlMetadata {
 
 /// Get the path for storing the API key
 fn get_api_key_path() -> Result<PathBuf, String> {
-    let app_dir = dirs::data_dir()
+    let app_dir = dirs::data_local_dir()
         .ok_or_else(|| "Could not find app data directory".to_string())?
-        .join("atlas");
+        .join("mymind");
     
     // Ensure directory exists
     fs::create_dir_all(&app_dir)
