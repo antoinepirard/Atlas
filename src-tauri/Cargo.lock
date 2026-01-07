@@ -183,7 +183,7 @@ dependencies = [
 
 [[package]]
 name = "atlas"
-version = "0.1.8"
+version = "0.1.10"
 dependencies = [
  "aes-gcm",
  "base64 0.22.1",
