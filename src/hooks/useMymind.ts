@@ -252,6 +252,7 @@ export function useMymind() {
       let description: string | undefined;
       let imageUrl: string | undefined;
       let tweetContent: string | undefined;
+      let author: string | undefined;
 
       if (itemType === 'url') {
         // Check if it's an X/Twitter post
@@ -262,6 +263,7 @@ export function useMymind() {
             title = `Tweet by ${tweetData.author}`;
             description = tweetData.text;
             tweetContent = tweetData.text;
+            author = tweetData.author;
           }
         }
         
@@ -271,6 +273,10 @@ export function useMymind() {
           if (!title) title = metadata.title || undefined;
           if (!description) description = metadata.description || undefined;
           imageUrl = metadata.image || undefined;
+          // Get author/channel name if not already set (e.g., from X/Twitter)
+          if (!author && metadata.author) {
+            author = metadata.author;
+          }
         } catch {
           // Fallback
         }
@@ -283,13 +289,25 @@ export function useMymind() {
       try {
         // For X posts, use the tweet content for AI processing
         const contentForAI = tweetContent || content;
-        const aiResult = await tauri.processWithAI(contentForAI, itemType, title, description);
+        // Include author/channel in description for better tag generation
+        const descriptionForAI = author 
+          ? `By: ${author}. ${description || ''}`
+          : description;
+        const aiResult = await tauri.processWithAI(contentForAI, itemType, title, descriptionForAI);
         tags = aiResult.tags;
         summary = aiResult.summary;
         embedding = aiResult.embedding;
         // Use AI-generated title if current title is missing or generic
         if (aiResult.title && isGenericTitle(title)) {
           title = aiResult.title;
+        }
+        // Auto-add author as a tag if present and not already included
+        if (author && !tags.some(t => t.toLowerCase().includes(author.toLowerCase().split(' ')[0]))) {
+          // Add normalized version of author name as tag
+          const authorTag = author.toLowerCase().replace(/[^a-z0-9\s-]/g, '').trim();
+          if (authorTag && !tags.includes(authorTag)) {
+            tags.push(authorTag);
+          }
         }
       } catch (err) {
         console.warn('AI processing failed, using defaults:', err);

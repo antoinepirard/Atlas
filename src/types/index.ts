@@ -80,6 +80,7 @@ export interface UrlMetadata {
   title: string | null;
   description: string | null;
   image: string | null;
+  author: string | null;
 }
 
 /** Data from quick capture (global shortcut) */

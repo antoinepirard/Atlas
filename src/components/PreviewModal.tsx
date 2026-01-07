@@ -265,7 +265,9 @@ export function PreviewModal({
 
                 {item.type === "url" && youtubeVideoId && (
                   <iframe
-                    src={`https://www.youtube.com/embed/${youtubeVideoId}?autoplay=0&rel=0`}
+                    src={`https://www.youtube-nocookie.com/embed/${youtubeVideoId}?autoplay=0&rel=0&origin=${encodeURIComponent(
+                      window.location.origin
+                    )}`}
                     title={item.title || "YouTube video"}
                     className="w-full h-full"
                     allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
