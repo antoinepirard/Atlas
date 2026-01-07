@@ -1,1 +1,0 @@
-Read release.md file and atlas.mdc that are in /cursor and release the changes made. Follow the natural order of tags for the release based on what was release previously. Add release notes to the github release. Commit/push changes if not done yet.
