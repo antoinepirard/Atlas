@@ -107,27 +107,6 @@ export function ItemCard({ item, onDelete, onClick }: ItemCardProps) {
           <div className="absolute inset-0 cursor-pointer" onClick={onClick} />
         </div>
 
-        {/* Tags */}
-        {item.tags.length > 0 && (
-          <div className="px-4 py-3 border-t border-stone-100">
-            <div className="flex flex-wrap gap-1">
-              {item.tags.slice(0, 4).map((tag, index) => (
-                <span
-                  key={`${tag}-${index}`}
-                  className="px-2 py-0.5 bg-stone-100 text-stone-500 rounded-full text-[10px] font-medium max-w-24 truncate"
-                >
-                  {tag}
-                </span>
-              ))}
-              {item.tags.length > 4 && (
-                <span className="px-2 py-0.5 text-stone-400 text-[10px]">
-                  +{item.tags.length - 4}
-                </span>
-              )}
-            </div>
-          </div>
-        )}
-
         {/* Hover actions */}
         <motion.div
           initial={{ opacity: 0 }}
@@ -197,23 +176,6 @@ export function ItemCard({ item, onDelete, onClick }: ItemCardProps) {
             <span>{formatDate(item.created_at)}</span>
           </div>
 
-          {item.tags.length > 0 && (
-            <div className="flex flex-wrap gap-1 mt-3">
-              {item.tags.slice(0, 4).map((tag, index) => (
-                <span
-                  key={`${tag}-${index}`}
-                  className="px-2 py-0.5 bg-stone-100 text-stone-500 rounded-full text-[10px] font-medium max-w-24 truncate"
-                >
-                  {tag}
-                </span>
-              ))}
-              {item.tags.length > 4 && (
-                <span className="px-2 py-0.5 text-stone-400 text-[10px]">
-                  +{item.tags.length - 4}
-                </span>
-              )}
-            </div>
-          )}
         </div>
 
         <motion.div
@@ -291,20 +253,8 @@ export function ItemCard({ item, onDelete, onClick }: ItemCardProps) {
           <motion.div
             initial={{ opacity: 0, y: 10 }}
             animate={{ opacity: showMenu ? 1 : 0, y: showMenu ? 0 : 10 }}
-            className="absolute bottom-0 left-0 right-0 p-3 flex items-end justify-between"
+            className="absolute bottom-0 left-0 right-0 p-3 flex items-end justify-end"
           >
-            {item.tags.length > 0 && (
-              <div className="flex flex-wrap gap-1">
-                {item.tags.slice(0, 3).map((tag, index) => (
-                  <span
-                    key={`${tag}-${index}`}
-                    className="px-2 py-0.5 bg-white/90 backdrop-blur-sm text-stone-700 rounded-full text-[10px] font-medium max-w-24 truncate"
-                  >
-                    {tag}
-                  </span>
-                ))}
-              </div>
-            )}
             <span className="text-[10px] text-white/80 font-medium">
               {formatDate(item.created_at)}
             </span>
@@ -343,23 +293,6 @@ export function ItemCard({ item, onDelete, onClick }: ItemCardProps) {
         <div className="mb-3">
           <NoteContent content={item.content} compact maxLines={6} />
         </div>
-
-        {item.tags.length > 0 && (
-          <div className="flex flex-wrap gap-1 mb-3">
-            {item.tags.slice(0, 4).map((tag, index) => (
-              <span
-                key={`${tag}-${index}`}
-                className={`px-2 py-0.5 rounded-full text-[10px] font-medium max-w-24 truncate ${
-                  isCode
-                    ? "bg-violet-500/20 text-violet-300"
-                    : "bg-amber-100/50 text-amber-700"
-                }`}
-              >
-                {tag}
-              </span>
-            ))}
-          </div>
-        )}
 
         <div
           className={`flex items-center gap-2 text-[10px] ${
