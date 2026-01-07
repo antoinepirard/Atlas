@@ -177,6 +177,16 @@ export async function startWindowDrag(): Promise<void> {
   await getCurrentWindow().startDragging();
 }
 
+export async function toggleMaximize(): Promise<void> {
+  const window = getCurrentWindow();
+  const isMaximized = await window.isMaximized();
+  if (isMaximized) {
+    await window.unmaximize();
+  } else {
+    await window.maximize();
+  }
+}
+
 // Accessibility commands
 export async function checkAccessibilityPermission(): Promise<boolean> {
   return invoke('check_accessibility_permission');

@@ -18,7 +18,7 @@ import { UpdateToast } from "./UpdateToast";
 import type { QuickCaptureData } from "./QuickCaptureModal";
 import { useVault } from "./VaultProvider";
 import { useMymind } from "../hooks/useMymind";
-import { startWindowDrag } from "../lib/tauri";
+import { startWindowDrag, toggleMaximize } from "../lib/tauri";
 import type { MymindItem } from "../types";
 
 export function MymindApp() {
@@ -282,6 +282,7 @@ export function MymindApp() {
         {/* Draggable title bar region */}
         <div
           onMouseDown={() => startWindowDrag()}
+          onDoubleClick={() => toggleMaximize()}
           className="h-7 w-full cursor-default select-none"
         />
 
