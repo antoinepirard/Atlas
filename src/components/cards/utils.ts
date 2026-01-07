@@ -26,16 +26,22 @@ export function getXPostInfo(url: string): XPostInfo | null {
 
 /**
  * Format a date string to a relative or short format
+ * Uses calendar day comparison (not raw time difference)
  */
 export function formatDate(dateString: string): string {
   const date = new Date(dateString);
   const now = new Date();
-  const diff = now.getTime() - date.getTime();
-  const days = Math.floor(diff / (1000 * 60 * 60 * 24));
+  
+  // Compare calendar dates (ignoring time of day)
+  const dateDay = new Date(date.getFullYear(), date.getMonth(), date.getDate());
+  const today = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+  
+  const diffMs = today.getTime() - dateDay.getTime();
+  const diffDays = Math.round(diffMs / (1000 * 60 * 60 * 24));
 
-  if (days === 0) return "Today";
-  if (days === 1) return "Yesterday";
-  if (days < 7) return `${days} days ago`;
+  if (diffDays === 0) return "Today";
+  if (diffDays === 1) return "Yesterday";
+  if (diffDays < 7) return `${diffDays} days ago`;
   return date.toLocaleDateString("en-US", { month: "short", day: "numeric" });
 }
 
