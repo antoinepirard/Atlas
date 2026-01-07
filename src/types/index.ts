@@ -15,6 +15,8 @@ export interface MymindItem {
   updated_at: string;
   /** Flag indicating image is stored externally (not in DB) */
   image_external?: boolean;
+  /** Dominant colors extracted from image (hex strings like "#ff5500") */
+  colors?: string[];
 }
 
 export interface MigrationResult {

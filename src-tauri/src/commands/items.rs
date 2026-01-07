@@ -33,6 +33,9 @@ pub struct MymindItem {
     /// Flag indicating image is stored externally (not in DB)
     #[serde(default)]
     pub image_external: bool,
+    /// Dominant colors extracted from image (hex strings like "#ff5500")
+    #[serde(default)]
+    pub colors: Vec<String>,
 }
 
 /// Input for adding new content
@@ -125,17 +128,19 @@ pub fn add_item(input: AddItemInput, state: State<VaultState>) -> Result<MymindI
         created_at: now.clone(),
         updated_at: now.clone(),
         image_external: false,
+        colors: vec![],
     };
 
     // For image items with data URL content, store externally
     if input.item_type == ItemType::Image && is_data_url(&input.content) {
-        // Store image externally, get thumbnail back
-        let thumbnail_url = images::store_image(&id, &input.content, &key)?;
+        // Store image externally, get thumbnail and colors back
+        let image_result = images::store_image(&id, &input.content, &key)?;
 
         // Update item to reference external storage
         item.image_external = true;
         item.content = format!("external:{}", id);
-        item.image_url = Some(thumbnail_url);
+        item.image_url = Some(image_result.thumbnail_url);
+        item.colors = image_result.colors;
     }
 
     // Save embedding to separate table for server-side search
@@ -294,12 +299,13 @@ pub fn migrate_image_to_external(id: String, state: State<VaultState>) -> Result
     }
 
     // Migrate the image
-    let thumbnail_url = images::migrate_image(&id, &item.content, &key)?;
+    let image_result = images::migrate_image(&id, &item.content, &key)?;
 
     // Update the item in database
     item.image_external = true;
     item.content = format!("external:{}", id);
-    item.image_url = Some(thumbnail_url.clone());
+    item.image_url = Some(image_result.thumbnail_url.clone());
+    item.colors = image_result.colors;
 
     let updated_json = serde_json::to_string(&item).map_err(|e| e.to_string())?;
     let encrypted_data = crypto::encrypt(&updated_json, &key).map_err(|e| e.to_string())?;
@@ -316,7 +322,7 @@ pub fn migrate_image_to_external(id: String, state: State<VaultState>) -> Result
         .save_item(&updated_encrypted)
         .map_err(|e| e.to_string())?;
 
-    Ok(thumbnail_url)
+    Ok(image_result.thumbnail_url)
 }
 
 /// Migrate all legacy images to external storage
@@ -340,11 +346,12 @@ pub fn migrate_all_images(state: State<VaultState>) -> Result<MigrationResult, S
                         // Check if content is a data URL
                         if is_data_url(&item.content) {
                             match images::store_image(&item.id, &item.content, &key) {
-                                Ok(thumbnail_url) => {
+                                Ok(image_result) => {
                                     // Update the item
                                     item.image_external = true;
                                     item.content = format!("external:{}", item.id);
-                                    item.image_url = Some(thumbnail_url);
+                                    item.image_url = Some(image_result.thumbnail_url);
+                                    item.colors = image_result.colors;
 
                                     let updated_json =
                                         serde_json::to_string(&item).map_err(|e| e.to_string())?;

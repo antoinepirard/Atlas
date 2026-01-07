@@ -512,6 +512,37 @@ export function PreviewModal({
                   </div>
                 )}
 
+                {/* Color Palette for images */}
+                {item.type === "image" &&
+                  item.colors &&
+                  item.colors.length > 0 && (
+                    <div className="mt-6">
+                      <p className="text-xs font-medium text-stone-400 uppercase tracking-wider mb-2">
+                        Color Palette
+                      </p>
+                      <div className="flex gap-2">
+                        {item.colors.map((color, index) => (
+                          <div
+                            key={`${color}-${index}`}
+                            className="group relative"
+                          >
+                            <div
+                              className="w-8 h-8 rounded-lg shadow-sm ring-1 ring-stone-200 cursor-pointer hover:scale-110 transition-transform"
+                              style={{ backgroundColor: color }}
+                              title={color}
+                              onClick={() => {
+                                navigator.clipboard.writeText(color);
+                              }}
+                            />
+                            <span className="absolute -bottom-6 left-1/2 -translate-x-1/2 text-[10px] text-stone-400 font-mono opacity-0 group-hover:opacity-100 transition-opacity whitespace-nowrap">
+                              {color}
+                            </span>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  )}
+
                 {/* Spacer */}
                 <div className="flex-1" />
 

@@ -3,7 +3,9 @@ use crate::db::get_db_path;
 use base64::{engine::general_purpose::STANDARD as BASE64, Engine};
 use image::codecs::jpeg::JpegEncoder;
 use image::imageops::FilterType;
-use image::{GenericImageView, ImageFormat};
+use image::{GenericImageView, ImageFormat, Rgba};
+use serde::{Deserialize, Serialize};
+use std::collections::HashMap;
 use std::fs;
 use std::io::Cursor;
 use std::path::PathBuf;
@@ -13,6 +15,19 @@ pub const THUMBNAIL_SIZE: u32 = 400;
 
 /// Quality for JPEG thumbnails (0-100)
 const THUMBNAIL_QUALITY: u8 = 80;
+
+/// Number of dominant colors to extract
+const NUM_COLORS: usize = 5;
+
+/// Size to resize image for color extraction (smaller = faster)
+const COLOR_SAMPLE_SIZE: u32 = 50;
+
+/// Result from storing an image
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct ImageResult {
+    pub thumbnail_url: String,
+    pub colors: Vec<String>,
+}
 
 /// Get the images directory path
 pub fn get_images_dir() -> PathBuf {
@@ -103,19 +118,119 @@ fn encode_to_data_url(bytes: &[u8], mime_type: &str) -> String {
     format!("data:{};base64,{}", mime_type, base64_data)
 }
 
-/// Store an image from a data URL, returning the thumbnail data URL
+/// Convert RGB to hex color string
+fn rgb_to_hex(r: u8, g: u8, b: u8) -> String {
+    format!("#{:02x}{:02x}{:02x}", r, g, b)
+}
+
+/// Calculate color distance in RGB space
+fn color_distance(c1: (u8, u8, u8), c2: (u8, u8, u8)) -> f64 {
+    let dr = c1.0 as f64 - c2.0 as f64;
+    let dg = c1.1 as f64 - c2.1 as f64;
+    let db = c1.2 as f64 - c2.2 as f64;
+    (dr * dr + dg * dg + db * db).sqrt()
+}
+
+/// Check if a color is too close to white/black/gray (low saturation)
+fn is_neutral(r: u8, g: u8, b: u8) -> bool {
+    let max = r.max(g).max(b) as f64;
+    let min = r.min(g).min(b) as f64;
+    
+    // Check if too dark or too light
+    if max < 30.0 || min > 225.0 {
+        return true;
+    }
+    
+    // Check saturation (if max == min, it's grayscale)
+    if max == 0.0 {
+        return true;
+    }
+    let saturation = (max - min) / max;
+    saturation < 0.15
+}
+
+/// Extract dominant colors from image bytes
+/// Uses a simple histogram-based approach with color quantization
+fn extract_colors(image_bytes: &[u8], format: ImageFormat) -> Vec<String> {
+    let img = match image::load_from_memory_with_format(image_bytes, format)
+        .or_else(|_| image::load_from_memory(image_bytes))
+    {
+        Ok(img) => img,
+        Err(_) => return vec![],
+    };
+
+    // Resize for faster processing
+    let small = img.resize(COLOR_SAMPLE_SIZE, COLOR_SAMPLE_SIZE, FilterType::Nearest);
+    
+    // Quantize colors to reduce color space (divide by 16 to get 16 levels per channel)
+    let quantize_level = 24u8;
+    
+    // Count quantized colors
+    let mut color_counts: HashMap<(u8, u8, u8), usize> = HashMap::new();
+    
+    for pixel in small.to_rgba8().pixels() {
+        let Rgba([r, g, b, a]) = *pixel;
+        
+        // Skip transparent pixels
+        if a < 128 {
+            continue;
+        }
+        
+        // Skip near-neutral colors (white, black, grays)
+        if is_neutral(r, g, b) {
+            continue;
+        }
+        
+        // Quantize the color
+        let qr = (r / quantize_level) * quantize_level + quantize_level / 2;
+        let qg = (g / quantize_level) * quantize_level + quantize_level / 2;
+        let qb = (b / quantize_level) * quantize_level + quantize_level / 2;
+        
+        *color_counts.entry((qr, qg, qb)).or_insert(0) += 1;
+    }
+    
+    // Sort by count and get top colors
+    let mut sorted_colors: Vec<_> = color_counts.into_iter().collect();
+    sorted_colors.sort_by(|a, b| b.1.cmp(&a.1));
+    
+    // Filter to ensure colors are sufficiently different from each other
+    let mut selected_colors: Vec<(u8, u8, u8)> = Vec::new();
+    let min_distance = 50.0; // Minimum color distance to be considered different
+    
+    for (color, _count) in sorted_colors {
+        let is_distinct = selected_colors.iter().all(|&existing| {
+            color_distance(color, existing) >= min_distance
+        });
+        
+        if is_distinct {
+            selected_colors.push(color);
+            if selected_colors.len() >= NUM_COLORS {
+                break;
+            }
+        }
+    }
+    
+    // Convert to hex strings
+    selected_colors
+        .into_iter()
+        .map(|(r, g, b)| rgb_to_hex(r, g, b))
+        .collect()
+}
+
+/// Store an image from a data URL, returning the thumbnail data URL and extracted colors
 /// 
 /// This function:
 /// 1. Decodes the base64 data URL
 /// 2. Creates a thumbnail
-/// 3. Encrypts both full image and thumbnail
-/// 4. Saves them to disk
-/// 5. Returns the thumbnail as a data URL for immediate display
+/// 3. Extracts dominant colors
+/// 4. Encrypts both full image and thumbnail
+/// 5. Saves them to disk
+/// 6. Returns the thumbnail as a data URL and colors for immediate display
 pub fn store_image(
     item_id: &str,
     data_url: &str,
     key: &[u8; 32],
-) -> Result<String, String> {
+) -> Result<ImageResult, String> {
     // Ensure images directory exists
     ensure_images_dir()?;
 
@@ -124,6 +239,9 @@ pub fn store_image(
 
     // Create thumbnail
     let thumbnail_bytes = create_thumbnail(&image_bytes, format)?;
+
+    // Extract dominant colors
+    let colors = extract_colors(&image_bytes, format);
 
     // Encrypt full image
     let full_image_base64 = BASE64.encode(&image_bytes);
@@ -144,8 +262,11 @@ pub fn store_image(
     fs::write(&thumb_path, &encrypted_thumbnail)
         .map_err(|e| format!("Failed to write thumbnail: {}", e))?;
 
-    // Return thumbnail as data URL for immediate use
-    Ok(encode_to_data_url(&thumbnail_bytes, "image/jpeg"))
+    // Return thumbnail as data URL and colors for immediate use
+    Ok(ImageResult {
+        thumbnail_url: encode_to_data_url(&thumbnail_bytes, "image/jpeg"),
+        colors,
+    })
 }
 
 /// Load and decrypt a thumbnail, returning it as a data URL
@@ -224,16 +345,20 @@ pub fn has_external_image(item_id: &str) -> bool {
 }
 
 /// Migrate a Base64 image from the database to external storage
-/// Returns the new thumbnail data URL
+/// Returns the new thumbnail data URL and colors
 pub fn migrate_image(
     item_id: &str,
     data_url: &str,
     key: &[u8; 32],
-) -> Result<String, String> {
+) -> Result<ImageResult, String> {
     // Check if already migrated
     if has_external_image(item_id) {
-        // Load existing thumbnail
-        return load_thumbnail(item_id, key);
+        // Load existing thumbnail (no colors for legacy migrated images)
+        let thumbnail_url = load_thumbnail(item_id, key)?;
+        return Ok(ImageResult {
+            thumbnail_url,
+            colors: vec![],
+        });
     }
 
     // Store the image externally

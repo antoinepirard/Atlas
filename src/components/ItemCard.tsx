@@ -269,6 +269,8 @@ export function ItemCard({
   }
 
   if (item.type === "image") {
+    const hasColors = item.colors && item.colors.length > 0;
+
     return (
       <motion.div
         layout
@@ -322,8 +324,21 @@ export function ItemCard({
           <motion.div
             initial={{ opacity: 0, y: 10 }}
             animate={{ opacity: showMenu ? 1 : 0, y: showMenu ? 0 : 10 }}
-            className="absolute bottom-0 left-0 right-0 p-3 flex items-end justify-end"
+            className="absolute bottom-0 left-0 right-0 p-3 flex items-end justify-between"
           >
+            {/* Color palette */}
+            {hasColors && (
+              <div className="flex gap-0.5">
+                {item.colors!.map((color, i) => (
+                  <div
+                    key={i}
+                    className="w-4 h-4 rounded-full ring-1 ring-white/30 shadow-sm"
+                    style={{ backgroundColor: color }}
+                    title={color}
+                  />
+                ))}
+              </div>
+            )}
             <span className="text-[10px] text-white/80 font-medium">
               {formatDate(item.created_at)}
             </span>
