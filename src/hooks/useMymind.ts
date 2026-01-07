@@ -32,6 +32,22 @@ function isXPostUrl(url: string): boolean {
   }
 }
 
+// Check if a title is generic (missing, empty, or looks like a filename)
+function isGenericTitle(title: string | undefined): boolean {
+  if (!title || title.trim() === '') return true;
+  const filenamePatterns = [
+    /^IMG[_-]?\d+/i,           // IMG_1234, IMG-1234
+    /^DSC[_-]?\d+/i,           // DSC_1234
+    /^photo[_-]?\d*/i,         // photo, photo_1
+    /^image[_-]?\d*/i,         // image, image_1
+    /^screenshot[_-]?\d*/i,    // screenshot_2024
+    /^screen\s*shot/i,         // Screen Shot 2024
+    /^capture[_-]?\d*/i,       // capture_1
+    /\.(jpg|jpeg|png|gif|webp|heic|bmp|tiff?)$/i,  // ends with image extension
+  ];
+  return filenamePatterns.some(pattern => pattern.test(title));
+}
+
 // Fetch tweet content via oEmbed API
 async function fetchTweetContent(url: string): Promise<{ author: string; text: string } | null> {
   try {
@@ -271,6 +287,10 @@ export function useMymind() {
         tags = aiResult.tags;
         summary = aiResult.summary;
         embedding = aiResult.embedding;
+        // Use AI-generated title if current title is missing or generic
+        if (aiResult.title && isGenericTitle(title)) {
+          title = aiResult.title;
+        }
       } catch (err) {
         console.warn('AI processing failed, using defaults:', err);
       }
@@ -314,11 +334,16 @@ export function useMymind() {
       let imageTags: string[] = ['image'];
       let imageSummary = '';
       let imageEmbedding: number[] = [];
+      let imageTitle: string = file.name;
       try {
         const aiResult = await tauri.processWithAI(dataUrl, 'image', file.name);
         imageTags = aiResult.tags;
         imageSummary = aiResult.summary;
         imageEmbedding = aiResult.embedding;
+        // Use AI-generated title if filename is generic
+        if (aiResult.title && isGenericTitle(file.name)) {
+          imageTitle = aiResult.title;
+        }
       } catch (err) {
         console.warn('AI processing failed, using defaults:', err);
       }
@@ -326,7 +351,7 @@ export function useMymind() {
       const newItem = await tauri.addItem({
         content: dataUrl,
         type: 'image',
-        title: file.name,
+        title: imageTitle,
         summary: imageSummary || undefined,
         image_url: dataUrl,
         tags: imageTags,

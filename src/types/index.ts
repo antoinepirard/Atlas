@@ -73,6 +73,7 @@ export interface AIProcessResult {
   tags: string[];
   summary: string;
   embedding: number[];
+  title?: string;
 }
 
 export interface UrlMetadata {

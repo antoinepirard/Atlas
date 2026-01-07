@@ -113,12 +113,62 @@ export function MymindApp() {
     };
   }, [addContent]);
 
-  // Auto-hiding scrollbar effect
+  // Listen for open-settings event from menu bar (⌘,)
+  useEffect(() => {
+    const unlisten = listen("open-settings", () => {
+      setIsSettingsOpen(true);
+    });
+
+    return () => {
+      unlisten.then((fn) => fn());
+    };
+  }, []);
+
+  // Listen for zoom events from menu bar
+  useEffect(() => {
+    const unlisten = listen<string>("zoom", (event) => {
+      const root = document.documentElement;
+      const currentZoom = parseFloat(
+        root.style.getPropertyValue("--app-zoom") || "1"
+      );
+
+      switch (event.payload) {
+        case "in":
+          root.style.setProperty(
+            "--app-zoom",
+            String(Math.min(currentZoom + 0.1, 2))
+          );
+          document.body.style.zoom = String(Math.min(currentZoom + 0.1, 2));
+          break;
+        case "out":
+          root.style.setProperty(
+            "--app-zoom",
+            String(Math.max(currentZoom - 0.1, 0.5))
+          );
+          document.body.style.zoom = String(Math.max(currentZoom - 0.1, 0.5));
+          break;
+        case "reset":
+          root.style.setProperty("--app-zoom", "1");
+          document.body.style.zoom = "1";
+          break;
+      }
+    });
+
+    return () => {
+      unlisten.then((fn) => fn());
+    };
+  }, []);
+
+  // Track scroll position for compact header
+  const [isScrolled, setIsScrolled] = useState(false);
+
+  // Auto-hiding scrollbar effect + scroll detection for compact header
   useEffect(() => {
     let scrollTimeout: ReturnType<typeof setTimeout>;
 
     const handleScroll = () => {
       document.documentElement.classList.add("is-scrolling");
+      setIsScrolled(window.scrollY > 50);
 
       clearTimeout(scrollTimeout);
       scrollTimeout = setTimeout(() => {
@@ -277,12 +327,17 @@ export function MymindApp() {
         </div>
 
         {/* Search bar */}
-        <div className="px-6 pb-6 pt-2 max-w-[1800px] mx-auto">
+        <div
+          className={`px-6 max-w-[1800px] mx-auto transition-all duration-300 ${
+            isScrolled ? "pb-3 pt-1" : "pb-6 pt-2"
+          }`}
+        >
           <SearchBar
             value={searchQuery}
             onChange={handleSearch}
             isLoading={isSearching}
             placeholder="Search..."
+            compact={isScrolled}
           />
         </div>
       </header>

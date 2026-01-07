@@ -48,6 +48,8 @@ fn create_app_menu(app: &tauri::AppHandle) -> Result<Menu<tauri::Wry>, tauri::Er
             &PredefinedMenuItem::copy(app, None)?,
             &PredefinedMenuItem::paste(app, None)?,
             &PredefinedMenuItem::select_all(app, None)?,
+            &PredefinedMenuItem::separator(app)?,
+            &MenuItem::with_id(app, "find", "Find...", true, Some("CmdOrCtrl+F"))?,
         ],
     )?;
 
@@ -56,6 +58,10 @@ fn create_app_menu(app: &tauri::AppHandle) -> Result<Menu<tauri::Wry>, tauri::Er
         "View",
         true,
         &[
+            &MenuItem::with_id(app, "zoom_in", "Zoom In", true, Some("CmdOrCtrl+Plus"))?,
+            &MenuItem::with_id(app, "zoom_out", "Zoom Out", true, Some("CmdOrCtrl+-"))?,
+            &MenuItem::with_id(app, "zoom_reset", "Actual Size", true, Some("CmdOrCtrl+0"))?,
+            &PredefinedMenuItem::separator(app)?,
             &PredefinedMenuItem::fullscreen(app, None)?,
         ],
     )?;
@@ -72,7 +78,17 @@ fn create_app_menu(app: &tauri::AppHandle) -> Result<Menu<tauri::Wry>, tauri::Er
         ],
     )?;
 
-    Menu::with_items(app, &[&app_menu, &edit_menu, &view_menu, &window_menu])
+    let help_menu = Submenu::with_items(
+        app,
+        "Help",
+        true,
+        &[
+            &MenuItem::with_id(app, "documentation", "Atlas Documentation", true, None::<&str>)?,
+            &MenuItem::with_id(app, "report_issue", "Report an Issue...", true, None::<&str>)?,
+        ],
+    )?;
+
+    Menu::with_items(app, &[&app_menu, &edit_menu, &view_menu, &window_menu, &help_menu])
 }
 
 /// Trigger quick capture from any application
@@ -164,6 +180,45 @@ pub fn run() {
                     // Emit event to frontend to show about
                     if let Some(window) = app.get_webview_window("main") {
                         let _ = window.emit("show-about", ());
+                    }
+                }
+                "find" => {
+                    // Emit event to frontend to focus search
+                    if let Some(window) = app.get_webview_window("main") {
+                        let _ = window.emit("focus-search", ());
+                    }
+                }
+                "zoom_in" => {
+                    if let Some(window) = app.get_webview_window("main") {
+                        let _ = window.emit("zoom", "in");
+                    }
+                }
+                "zoom_out" => {
+                    if let Some(window) = app.get_webview_window("main") {
+                        let _ = window.emit("zoom", "out");
+                    }
+                }
+                "zoom_reset" => {
+                    if let Some(window) = app.get_webview_window("main") {
+                        let _ = window.emit("zoom", "reset");
+                    }
+                }
+                "documentation" => {
+                    // Open documentation in browser
+                    #[cfg(target_os = "macos")]
+                    {
+                        let _ = std::process::Command::new("open")
+                            .arg("https://github.com/antoinepirard/Atlas#readme")
+                            .spawn();
+                    }
+                }
+                "report_issue" => {
+                    // Open GitHub issues
+                    #[cfg(target_os = "macos")]
+                    {
+                        let _ = std::process::Command::new("open")
+                            .arg("https://github.com/antoinepirard/Atlas/issues/new")
+                            .spawn();
                     }
                 }
                 _ => {}
