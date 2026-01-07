@@ -1,21 +1,25 @@
-import { useState, useCallback, useEffect } from 'react';
-import { motion, AnimatePresence } from 'motion/react';
-import { PlusIcon, LockClosedIcon, Cog6ToothIcon } from '@heroicons/react/24/outline';
-import { listen } from '@tauri-apps/api/event';
-import { SearchBar } from './SearchBar';
-import { MasonryGrid } from './MasonryGrid';
-import { ItemCard } from './ItemCard';
-import { AddContentModal } from './AddContentModal';
-import { PreviewModal } from './PreviewModal';
-import { SettingsModal } from './SettingsModal';
-import { TypeFilter } from './TypeFilter';
-import { PasteIndicator } from './PasteIndicator';
-import { UpdateToast } from './UpdateToast';
-import type { QuickCaptureData } from './QuickCaptureModal';
-import { useVault } from './VaultProvider';
-import { useMymind } from '../hooks/useMymind';
-import { startWindowDrag } from '../lib/tauri';
-import type { MymindItem } from '../types';
+import { useState, useCallback, useEffect } from "react";
+import { motion, AnimatePresence } from "motion/react";
+import {
+  PlusIcon,
+  LockClosedIcon,
+  Cog6ToothIcon,
+} from "@heroicons/react/24/outline";
+import { listen } from "@tauri-apps/api/event";
+import { SearchBar } from "./SearchBar";
+import { MasonryGrid } from "./MasonryGrid";
+import { ItemCard } from "./ItemCard";
+import { AddContentModal } from "./AddContentModal";
+import { PreviewModal } from "./PreviewModal";
+import { SettingsModal } from "./SettingsModal";
+import { TypeFilter } from "./TypeFilter";
+import { PasteIndicator } from "./PasteIndicator";
+import { UpdateToast } from "./UpdateToast";
+import type { QuickCaptureData } from "./QuickCaptureModal";
+import { useVault } from "./VaultProvider";
+import { useMymind } from "../hooks/useMymind";
+import { startWindowDrag } from "../lib/tauri";
+import type { MymindItem } from "../types";
 
 export function MymindApp() {
   const { lock, status } = useVault();
@@ -39,76 +43,92 @@ export function MymindApp() {
     loadMore,
   } = useMymind();
 
-  const handleAddContent = useCallback(async (content: string) => {
-    await addContent(content);
-    setIsAddModalOpen(false);
-  }, [addContent]);
+  const handleAddContent = useCallback(
+    async (content: string) => {
+      await addContent(content);
+      setIsAddModalOpen(false);
+    },
+    [addContent]
+  );
 
   // Navigate to previous/next item in preview modal
-  const handleNavigateItem = useCallback((direction: 'prev' | 'next') => {
-    if (!selectedItem) return;
-    const currentIndex = items.findIndex(item => item.id === selectedItem.id);
-    if (currentIndex === -1) return;
-    
-    const newIndex = direction === 'prev' 
-      ? (currentIndex - 1 + items.length) % items.length
-      : (currentIndex + 1) % items.length;
-    
-    setSelectedItem(items[newIndex]);
-  }, [selectedItem, items]);
+  const handleNavigateItem = useCallback(
+    (direction: "prev" | "next") => {
+      if (!selectedItem) return;
+      const currentIndex = items.findIndex(
+        (item) => item.id === selectedItem.id
+      );
+      if (currentIndex === -1) return;
 
-  const handleUploadImage = useCallback(async (file: File) => {
-    await uploadImage(file);
-    setIsAddModalOpen(false);
-  }, [uploadImage]);
+      const newIndex =
+        direction === "prev"
+          ? (currentIndex - 1 + items.length) % items.length
+          : (currentIndex + 1) % items.length;
+
+      setSelectedItem(items[newIndex]);
+    },
+    [selectedItem, items]
+  );
+
+  const handleUploadImage = useCallback(
+    async (file: File) => {
+      await uploadImage(file);
+      setIsAddModalOpen(false);
+    },
+    [uploadImage]
+  );
 
   // Listen for quick-capture events from Tauri - save automatically in the background
   useEffect(() => {
-    const unlisten = listen<QuickCaptureData>('quick-capture', async (event) => {
-      const data = event.payload;
-      const hasUrl = data.url && data.url.length > 0;
-      const hasText = data.selected_text && data.selected_text.trim().length > 0;
-      const sourceUrl = data.url || undefined;
+    const unlisten = listen<QuickCaptureData>(
+      "quick-capture",
+      async (event) => {
+        const data = event.payload;
+        const hasUrl = data.url && data.url.length > 0;
+        const hasText =
+          data.selected_text && data.selected_text.trim().length > 0;
+        const sourceUrl = data.url || undefined;
 
-      if (!hasUrl && !hasText) return;
+        if (!hasUrl && !hasText) return;
 
-      try {
-        // Save URL as a link if present
-        if (hasUrl && data.url) {
-          await addContent(data.url);
+        try {
+          // Save URL as a link if present
+          if (hasUrl && data.url) {
+            await addContent(data.url);
+          }
+
+          // Save selected text as a note with source_url property
+          if (hasText && data.selected_text) {
+            const text = data.selected_text.trim();
+            await addContent(text, sourceUrl);
+          }
+        } catch (error) {
+          console.error("Quick capture failed:", error);
         }
-        
-        // Save selected text as a note with source_url property
-        if (hasText && data.selected_text) {
-          const text = data.selected_text.trim();
-          await addContent(text, sourceUrl);
-        }
-      } catch (error) {
-        console.error('Quick capture failed:', error);
       }
-    });
+    );
 
     return () => {
-      unlisten.then(fn => fn());
+      unlisten.then((fn) => fn());
     };
   }, [addContent]);
 
   // Auto-hiding scrollbar effect
   useEffect(() => {
     let scrollTimeout: ReturnType<typeof setTimeout>;
-    
+
     const handleScroll = () => {
-      document.documentElement.classList.add('is-scrolling');
-      
+      document.documentElement.classList.add("is-scrolling");
+
       clearTimeout(scrollTimeout);
       scrollTimeout = setTimeout(() => {
-        document.documentElement.classList.remove('is-scrolling');
+        document.documentElement.classList.remove("is-scrolling");
       }, 1000); // Hide after 1 second of no scrolling
     };
 
-    window.addEventListener('scroll', handleScroll, { passive: true });
+    window.addEventListener("scroll", handleScroll, { passive: true });
     return () => {
-      window.removeEventListener('scroll', handleScroll);
+      window.removeEventListener("scroll", handleScroll);
       clearTimeout(scrollTimeout);
     };
   }, []);
@@ -118,12 +138,16 @@ export function MymindApp() {
     const handleKeyDown = (e: KeyboardEvent) => {
       // Don't trigger shortcuts if typing in an input
       const target = e.target as HTMLElement;
-      if (target.tagName === 'INPUT' || target.tagName === 'TEXTAREA' || target.isContentEditable) {
+      if (
+        target.tagName === "INPUT" ||
+        target.tagName === "TEXTAREA" ||
+        target.isContentEditable
+      ) {
         return;
       }
 
       // ⌘+N to open add content modal
-      if ((e.metaKey || e.ctrlKey) && e.key === 'n') {
+      if ((e.metaKey || e.ctrlKey) && e.key === "n") {
         e.preventDefault();
         setIsAddModalOpen(true);
         return;
@@ -131,31 +155,35 @@ export function MymindApp() {
 
       // ⌘+1/2/3/4 to filter by type
       if (e.metaKey || e.ctrlKey) {
-        if (e.key === '1') {
+        if (e.key === "1") {
           e.preventDefault();
           handleFilterType(null);
-        } else if (e.key === '2') {
+        } else if (e.key === "2") {
           e.preventDefault();
-          handleFilterType('url');
-        } else if (e.key === '3') {
+          handleFilterType("url");
+        } else if (e.key === "3") {
           e.preventDefault();
-          handleFilterType('image');
-        } else if (e.key === '4') {
+          handleFilterType("image");
+        } else if (e.key === "4") {
           e.preventDefault();
-          handleFilterType('note');
+          handleFilterType("note");
         }
       }
     };
 
-    window.addEventListener('keydown', handleKeyDown);
-    return () => window.removeEventListener('keydown', handleKeyDown);
+    window.addEventListener("keydown", handleKeyDown);
+    return () => window.removeEventListener("keydown", handleKeyDown);
   }, [handleFilterType]);
 
   // Global paste handler
   useEffect(() => {
     const handlePaste = async (e: ClipboardEvent) => {
       const target = e.target as HTMLElement;
-      if (target.tagName === 'INPUT' || target.tagName === 'TEXTAREA' || target.isContentEditable) {
+      if (
+        target.tagName === "INPUT" ||
+        target.tagName === "TEXTAREA" ||
+        target.isContentEditable
+      ) {
         return;
       }
 
@@ -163,7 +191,7 @@ export function MymindApp() {
       if (!items) return;
 
       for (const item of items) {
-        if (item.type.startsWith('image/')) {
+        if (item.type.startsWith("image/")) {
           e.preventDefault();
           const file = item.getAsFile();
           if (file) {
@@ -175,7 +203,7 @@ export function MymindApp() {
         }
       }
 
-      const text = e.clipboardData?.getData('text/plain');
+      const text = e.clipboardData?.getData("text/plain");
       if (text && text.trim()) {
         e.preventDefault();
         setIsPasting(true);
@@ -184,12 +212,12 @@ export function MymindApp() {
       }
     };
 
-    window.addEventListener('paste', handlePaste);
-    return () => window.removeEventListener('paste', handlePaste);
+    window.addEventListener("paste", handlePaste);
+    return () => window.removeEventListener("paste", handlePaste);
   }, [addContent, uploadImage]);
 
   const getColumns = () => {
-    if (typeof window === 'undefined') return 4;
+    if (typeof window === "undefined") return 4;
     if (window.innerWidth < 640) return 1;
     if (window.innerWidth < 768) return 2;
     if (window.innerWidth < 1024) return 3;
@@ -202,11 +230,11 @@ export function MymindApp() {
 
       <header className="sticky top-0 z-40 bg-stone-100/95 backdrop-blur-sm border-b border-stone-200/50">
         {/* Draggable title bar region */}
-        <div 
+        <div
           onMouseDown={() => startWindowDrag()}
           className="h-7 w-full cursor-default select-none"
         />
-        
+
         {/* Toolbar row - settings on left after traffic lights, controls on right */}
         <div className="flex items-center justify-between px-4 py-2">
           <motion.button
@@ -220,10 +248,7 @@ export function MymindApp() {
           </motion.button>
 
           <div className="flex items-center gap-3">
-            <TypeFilter
-              value={filterType}
-              onChange={handleFilterType}
-            />
+            <TypeFilter value={filterType} onChange={handleFilterType} />
 
             <motion.button
               whileHover={{ scale: 1.02 }}
@@ -257,7 +282,7 @@ export function MymindApp() {
             value={searchQuery}
             onChange={handleSearch}
             isLoading={isSearching}
-            placeholder="Search my mind..."
+            placeholder="Search..."
           />
         </div>
       </header>
@@ -274,14 +299,18 @@ export function MymindApp() {
               <div className="w-24 h-24 rounded-3xl bg-gradient-to-br from-amber-100 to-orange-100 flex items-center justify-center mb-8">
                 <span className="text-5xl">🧠</span>
               </div>
-              <h2 
+              <h2
                 className="text-2xl text-stone-600 mb-3"
-                style={{ fontFamily: "'Newsreader', 'Georgia', serif", fontStyle: 'italic' }}
+                style={{
+                  fontFamily: "'Newsreader', 'Georgia', serif",
+                  fontStyle: "italic",
+                }}
               >
                 Your mind is empty
               </h2>
               <p className="text-stone-400 max-w-md mb-8 text-sm">
-                Paste anything to add it. URLs, images, notes—just press ⌘V anywhere, or ⌘N to add content.
+                Paste anything to add it. URLs, images, notes—just press ⌘V
+                anywhere, or ⌘N to add content.
               </p>
               <button
                 onClick={() => setIsAddModalOpen(true)}
@@ -302,8 +331,8 @@ export function MymindApp() {
               </p>
             </motion.div>
           ) : (
-            <MasonryGrid 
-              columns={getColumns()} 
+            <MasonryGrid
+              columns={getColumns()}
               gap={20}
               onLoadMore={loadMore}
               hasMore={hasMore}
@@ -315,7 +344,10 @@ export function MymindApp() {
                   initial={{ opacity: 0, y: 20 }}
                   animate={{ opacity: 1, y: 0 }}
                   exit={{ opacity: 0, scale: 0.9 }}
-                  transition={{ delay: Math.min(index * 0.02, 0.5), duration: 0.25 }}
+                  transition={{
+                    delay: Math.min(index * 0.02, 0.5),
+                    duration: 0.25,
+                  }}
                 >
                   <ItemCard
                     item={item}
@@ -348,7 +380,9 @@ export function MymindApp() {
         onClose={() => setSelectedItem(null)}
         onNavigate={handleNavigateItem}
         totalItems={items.length}
-        currentIndex={selectedItem ? items.findIndex(i => i.id === selectedItem.id) : -1}
+        currentIndex={
+          selectedItem ? items.findIndex((i) => i.id === selectedItem.id) : -1
+        }
       />
 
       <SettingsModal
@@ -360,4 +394,3 @@ export function MymindApp() {
     </div>
   );
 }
-
