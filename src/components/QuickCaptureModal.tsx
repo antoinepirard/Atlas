@@ -36,13 +36,14 @@ export function QuickCaptureModal({
 
   // Determine available save modes based on captured data
   const hasUrl = captureData?.url && captureData.url.length > 0;
-  const hasText = captureData?.selected_text && captureData.selected_text.length > 0;
+  const hasText =
+    captureData?.selected_text && captureData.selected_text.length > 0;
 
   // Reset state when new capture comes in
   useEffect(() => {
     if (isOpen && captureData) {
       setEditedText(captureData.selected_text || "");
-      
+
       // Auto-select the best save mode
       if (hasText && hasUrl) {
         setSaveMode("both");
@@ -51,7 +52,7 @@ export function QuickCaptureModal({
       } else if (hasUrl) {
         setSaveMode("url");
       }
-      
+
       // Focus textarea if we have text
       if (hasText) {
         setTimeout(() => textareaRef.current?.focus(), 100);
@@ -81,7 +82,15 @@ export function QuickCaptureModal({
     } finally {
       setIsSubmitting(false);
     }
-  }, [captureData, editedText, saveMode, isSubmitting, onSaveUrl, onSaveNote, onClose]);
+  }, [
+    captureData,
+    editedText,
+    saveMode,
+    isSubmitting,
+    onSaveUrl,
+    onSaveNote,
+    onClose,
+  ]);
 
   const handleKeyDown = useCallback(
     (e: React.KeyboardEvent) => {
@@ -97,7 +106,7 @@ export function QuickCaptureModal({
   );
 
   // Determine what we can save
-  const canSave = 
+  const canSave =
     (saveMode === "url" && hasUrl) ||
     (saveMode === "note" && editedText.trim()) ||
     (saveMode === "both" && (hasUrl || editedText.trim()));
@@ -169,9 +178,21 @@ export function QuickCaptureModal({
               {hasUrl && hasText && (
                 <div className="flex items-center gap-1 px-5 py-3 bg-stone-50 border-b border-stone-100">
                   {[
-                    { mode: "both" as const, label: "Save Both", icon: ClipboardDocumentIcon },
-                    { mode: "url" as const, label: "Link Only", icon: LinkIcon },
-                    { mode: "note" as const, label: "Note Only", icon: DocumentTextIcon },
+                    {
+                      mode: "both" as const,
+                      label: "Save Both",
+                      icon: ClipboardDocumentIcon,
+                    },
+                    {
+                      mode: "url" as const,
+                      label: "Link Only",
+                      icon: LinkIcon,
+                    },
+                    {
+                      mode: "note" as const,
+                      label: "Note Only",
+                      icon: DocumentTextIcon,
+                    },
                   ].map(({ mode, label, icon: Icon }) => (
                     <button
                       key={mode}
@@ -203,7 +224,14 @@ export function QuickCaptureModal({
                       value={editedText}
                       onChange={(e) => setEditedText(e.target.value)}
                       placeholder="Enter text to save..."
-                      rows={hasText ? Math.min(8, Math.max(3, editedText.split('\n').length)) : 4}
+                      rows={
+                        hasText
+                          ? Math.min(
+                              8,
+                              Math.max(3, editedText.split("\n").length)
+                            )
+                          : 4
+                      }
                       className="w-full px-4 py-3 bg-stone-50 border border-stone-200 rounded-xl text-stone-800 placeholder-stone-400 focus:outline-none focus:ring-2 focus:ring-amber-400/50 focus:border-amber-400 resize-none text-sm"
                     />
                   </div>
@@ -274,7 +302,13 @@ export function QuickCaptureModal({
                         Saving...
                       </span>
                     ) : (
-                      `Save ${saveMode === "both" ? "Both" : saveMode === "url" ? "Link" : "Note"}`
+                      `Save ${
+                        saveMode === "both"
+                          ? "Both"
+                          : saveMode === "url"
+                          ? "Link"
+                          : "Note"
+                      }`
                     )}
                   </button>
                 </div>
@@ -286,4 +320,3 @@ export function QuickCaptureModal({
     </AnimatePresence>
   );
 }
-

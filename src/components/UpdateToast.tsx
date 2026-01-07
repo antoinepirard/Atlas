@@ -1,50 +1,64 @@
-import { useState, useEffect, useCallback } from 'react';
-import { motion, AnimatePresence } from 'motion/react';
-import { ArrowDownTrayIcon, XMarkIcon, ArrowPathIcon, SparklesIcon } from '@heroicons/react/24/outline';
-import { check, Update } from '@tauri-apps/plugin-updater';
-import { relaunch } from '@tauri-apps/plugin-process';
-import { listen } from '@tauri-apps/api/event';
+import { useState, useEffect, useCallback } from "react";
+import { motion, AnimatePresence } from "motion/react";
+import {
+  ArrowDownTrayIcon,
+  XMarkIcon,
+  ArrowPathIcon,
+  SparklesIcon,
+} from "@heroicons/react/24/outline";
+import { check, Update } from "@tauri-apps/plugin-updater";
+import { relaunch } from "@tauri-apps/plugin-process";
+import { listen } from "@tauri-apps/api/event";
 
-type UpdateStatus = 'idle' | 'checking' | 'available' | 'downloading' | 'ready' | 'error' | 'up-to-date';
+type UpdateStatus =
+  | "idle"
+  | "checking"
+  | "available"
+  | "downloading"
+  | "ready"
+  | "error"
+  | "up-to-date";
 
 interface UpdateToastProps {
   onOpenSettings?: () => void;
 }
 
 export function UpdateToast({ onOpenSettings }: UpdateToastProps) {
-  const [status, setStatus] = useState<UpdateStatus>('idle');
+  const [status, setStatus] = useState<UpdateStatus>("idle");
   const [update, setUpdate] = useState<Update | null>(null);
   const [progress, setProgress] = useState(0);
   const [error, setError] = useState<string | null>(null);
   const [isVisible, setIsVisible] = useState(false);
 
   const checkForUpdates = useCallback(async (manual = false) => {
-    setStatus('checking');
+    setStatus("checking");
     setError(null);
-    
+
     // Only show the toast immediately for manual checks
     if (manual) {
       setIsVisible(true);
     }
-    
+
     try {
       const updateResult = await check();
-      
+
       if (updateResult) {
         setUpdate(updateResult);
-        setStatus('available');
+        setStatus("available");
         setIsVisible(true); // Show toast when update is available
       } else {
-        setStatus('up-to-date');
+        setStatus("up-to-date");
         // Only show "up to date" message for manual checks
         if (manual) {
           setTimeout(() => setIsVisible(false), 3000);
         }
       }
     } catch (err) {
-      console.error('Update check failed:', err);
-      setError(err instanceof Error ? err.message : 'Failed to check for updates');
-      setStatus('error');
+      console.error("Update check failed:", err);
+      setError(
+        err instanceof Error ? err.message : "Failed to check for updates"
+      );
+      setStatus("error");
       // Only show error for manual checks
       if (manual) {
         setIsVisible(true);
@@ -54,35 +68,37 @@ export function UpdateToast({ onOpenSettings }: UpdateToastProps) {
 
   const downloadAndInstall = useCallback(async () => {
     if (!update) return;
-    
-    setStatus('downloading');
+
+    setStatus("downloading");
     setProgress(0);
-    
+
     try {
       let downloaded = 0;
       let total = 0;
       await update.downloadAndInstall((event) => {
         switch (event.event) {
-          case 'Started':
+          case "Started":
             setProgress(0);
             total = event.data.contentLength ?? 0;
             break;
-          case 'Progress':
+          case "Progress":
             downloaded += event.data.chunkLength;
             if (total > 0) {
               setProgress(Math.round((downloaded / total) * 100));
             }
             break;
-          case 'Finished':
+          case "Finished":
             setProgress(100);
-            setStatus('ready');
+            setStatus("ready");
             break;
         }
       });
     } catch (err) {
-      console.error('Download failed:', err);
-      setError(err instanceof Error ? err.message : 'Failed to download update');
-      setStatus('error');
+      console.error("Download failed:", err);
+      setError(
+        err instanceof Error ? err.message : "Failed to download update"
+      );
+      setStatus("error");
     }
   }, [update]);
 
@@ -90,8 +106,8 @@ export function UpdateToast({ onOpenSettings }: UpdateToastProps) {
     try {
       await relaunch();
     } catch (err) {
-      console.error('Relaunch failed:', err);
-      setError('Failed to restart. Please restart manually.');
+      console.error("Relaunch failed:", err);
+      setError("Failed to restart. Please restart manually.");
     }
   }, []);
 
@@ -99,8 +115,8 @@ export function UpdateToast({ onOpenSettings }: UpdateToastProps) {
     setIsVisible(false);
     // Reset state after animation
     setTimeout(() => {
-      if (status !== 'ready') {
-        setStatus('idle');
+      if (status !== "ready") {
+        setStatus("idle");
         setUpdate(null);
         setProgress(0);
         setError(null);
@@ -110,23 +126,23 @@ export function UpdateToast({ onOpenSettings }: UpdateToastProps) {
 
   // Listen for menu event to check for updates
   useEffect(() => {
-    const unlisten = listen('check-for-updates', () => {
+    const unlisten = listen("check-for-updates", () => {
       checkForUpdates(true);
     });
 
     return () => {
-      unlisten.then(fn => fn());
+      unlisten.then((fn) => fn());
     };
   }, [checkForUpdates]);
 
   // Listen for settings menu event
   useEffect(() => {
-    const unlisten = listen('open-settings', () => {
+    const unlisten = listen("open-settings", () => {
       onOpenSettings?.();
     });
 
     return () => {
-      unlisten.then(fn => fn());
+      unlisten.then((fn) => fn());
     };
   }, [onOpenSettings]);
 
@@ -146,7 +162,7 @@ export function UpdateToast({ onOpenSettings }: UpdateToastProps) {
           initial={{ opacity: 0, y: 50, scale: 0.95 }}
           animate={{ opacity: 1, y: 0, scale: 1 }}
           exit={{ opacity: 0, y: 50, scale: 0.95 }}
-          transition={{ type: 'spring', damping: 25, stiffness: 300 }}
+          transition={{ type: "spring", damping: 25, stiffness: 300 }}
           className="fixed bottom-6 right-6 z-[100]"
         >
           <div className="bg-white rounded-2xl shadow-2xl shadow-stone-900/15 border border-stone-200/50 overflow-hidden w-80">
@@ -154,24 +170,26 @@ export function UpdateToast({ onOpenSettings }: UpdateToastProps) {
             <div className="flex items-center justify-between px-4 py-3 bg-gradient-to-r from-amber-50 to-orange-50 border-b border-stone-100">
               <div className="flex items-center gap-2">
                 <div className="w-8 h-8 rounded-full bg-gradient-to-br from-amber-400 to-orange-500 flex items-center justify-center">
-                  {status === 'checking' ? (
+                  {status === "checking" ? (
                     <ArrowPathIcon className="w-4 h-4 text-white animate-spin" />
-                  ) : status === 'available' || status === 'downloading' || status === 'ready' ? (
+                  ) : status === "available" ||
+                    status === "downloading" ||
+                    status === "ready" ? (
                     <SparklesIcon className="w-4 h-4 text-white" />
                   ) : (
                     <ArrowDownTrayIcon className="w-4 h-4 text-white" />
                   )}
                 </div>
                 <span className="font-medium text-stone-800 text-sm">
-                  {status === 'checking' && 'Checking for updates...'}
-                  {status === 'available' && 'Update Available'}
-                  {status === 'downloading' && 'Downloading...'}
-                  {status === 'ready' && 'Ready to Install'}
-                  {status === 'up-to-date' && 'Up to Date'}
-                  {status === 'error' && 'Update Error'}
+                  {status === "checking" && "Checking for updates..."}
+                  {status === "available" && "Update Available"}
+                  {status === "downloading" && "Downloading..."}
+                  {status === "ready" && "Ready to Install"}
+                  {status === "up-to-date" && "Up to Date"}
+                  {status === "error" && "Update Error"}
                 </span>
               </div>
-              {(status !== 'downloading') && (
+              {status !== "downloading" && (
                 <button
                   onClick={dismiss}
                   className="p-1 text-stone-400 hover:text-stone-600 hover:bg-white/50 rounded-lg transition-colors"
@@ -183,23 +201,26 @@ export function UpdateToast({ onOpenSettings }: UpdateToastProps) {
 
             {/* Content */}
             <div className="p-4">
-              {status === 'checking' && (
+              {status === "checking" && (
                 <p className="text-sm text-stone-500">
                   Looking for new versions...
                 </p>
               )}
 
-              {status === 'up-to-date' && (
+              {status === "up-to-date" && (
                 <p className="text-sm text-stone-500">
                   You're running the latest version of Atlas.
                 </p>
               )}
 
-              {status === 'available' && update && (
+              {status === "available" && update && (
                 <div className="space-y-3">
                   <div>
                     <p className="text-sm text-stone-700">
-                      <span className="font-medium">Version {update.version}</span> is available
+                      <span className="font-medium">
+                        Version {update.version}
+                      </span>{" "}
+                      is available
                     </p>
                     {update.body && (
                       <p className="text-xs text-stone-500 mt-1 line-clamp-2">
@@ -225,7 +246,7 @@ export function UpdateToast({ onOpenSettings }: UpdateToastProps) {
                 </div>
               )}
 
-              {status === 'downloading' && (
+              {status === "downloading" && (
                 <div className="space-y-3">
                   <div className="h-2 bg-stone-100 rounded-full overflow-hidden">
                     <motion.div
@@ -241,7 +262,7 @@ export function UpdateToast({ onOpenSettings }: UpdateToastProps) {
                 </div>
               )}
 
-              {status === 'ready' && (
+              {status === "ready" && (
                 <div className="space-y-3">
                   <p className="text-sm text-stone-600">
                     Update downloaded! Restart Atlas to apply the changes.
@@ -256,10 +277,10 @@ export function UpdateToast({ onOpenSettings }: UpdateToastProps) {
                 </div>
               )}
 
-              {status === 'error' && (
+              {status === "error" && (
                 <div className="space-y-3">
                   <p className="text-sm text-red-600">
-                    {error || 'An error occurred while checking for updates.'}
+                    {error || "An error occurred while checking for updates."}
                   </p>
                   <button
                     onClick={() => checkForUpdates(true)}
@@ -276,4 +297,3 @@ export function UpdateToast({ onOpenSettings }: UpdateToastProps) {
     </AnimatePresence>
   );
 }
-
