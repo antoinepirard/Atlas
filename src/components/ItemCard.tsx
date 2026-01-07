@@ -1,12 +1,39 @@
-import { useState, useCallback } from 'react';
-import { motion } from 'motion/react';
+import { useState, useCallback, useMemo } from "react";
+import { motion } from "motion/react";
 import {
   LinkIcon,
   DocumentTextIcon,
   TrashIcon,
   ArrowTopRightOnSquareIcon,
-} from '@heroicons/react/24/outline';
-import type { MymindItem } from '../types';
+  CodeBracketIcon,
+} from "@heroicons/react/24/outline";
+import type { MymindItem } from "../types";
+import { NoteContent } from "./CodeBlock";
+import { detectCode } from "../utils/codeDetection";
+
+// Detect X/Twitter post URL and extract info
+function getXPostInfo(
+  url: string
+): { username: string; postId: string } | null {
+  try {
+    const urlObj = new URL(url);
+    const hostname = urlObj.hostname.replace("www.", "");
+
+    if (hostname !== "x.com" && hostname !== "twitter.com") {
+      return null;
+    }
+
+    // Match /username/status/postId pattern
+    const match = urlObj.pathname.match(/^\/([^/]+)\/status\/(\d+)/);
+    if (match) {
+      return { username: match[1], postId: match[2] };
+    }
+
+    return null;
+  } catch {
+    return null;
+  }
+}
 
 interface ItemCardProps {
   item: MymindItem;
@@ -17,6 +44,12 @@ interface ItemCardProps {
 export function ItemCard({ item, onDelete, onClick }: ItemCardProps) {
   const [showMenu, setShowMenu] = useState(false);
   const [isDeleting, setIsDeleting] = useState(false);
+
+  // Check if this is an X/Twitter post
+  const xPostInfo = useMemo(() => {
+    if (item.type !== "url") return null;
+    return getXPostInfo(item.content);
+  }, [item.type, item.content]);
 
   const handleDelete = useCallback(async () => {
     setIsDeleting(true);
@@ -29,21 +62,101 @@ export function ItemCard({ item, onDelete, onClick }: ItemCardProps) {
     const diff = now.getTime() - date.getTime();
     const days = Math.floor(diff / (1000 * 60 * 60 * 24));
 
-    if (days === 0) return 'Today';
-    if (days === 1) return 'Yesterday';
+    if (days === 0) return "Today";
+    if (days === 1) return "Yesterday";
     if (days < 7) return `${days} days ago`;
-    return date.toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
+    return date.toLocaleDateString("en-US", { month: "short", day: "numeric" });
   };
 
   const getDomain = (url: string) => {
     try {
-      return new URL(url).hostname.replace('www.', '');
+      return new URL(url).hostname.replace("www.", "");
     } catch {
-      return '';
+      return "";
     }
   };
 
-  if (item.type === 'url') {
+  // Detect if content is code for notes
+  const isCode = useMemo(() => {
+    if (item.type !== "note") return false;
+    return detectCode(item.content).isCode;
+  }, [item.type, item.content]);
+
+  // Special rendering for X/Twitter posts - embed the actual tweet
+  if (item.type === "url" && xPostInfo) {
+    const embedUrl = `https://platform.twitter.com/embed/Tweet.html?dnt=true&id=${xPostInfo.postId}&theme=light`;
+
+    return (
+      <motion.div
+        layout
+        className="group relative bg-white rounded-xl overflow-hidden shadow-sm hover:shadow-md transition-all duration-200 ring-1 ring-stone-200/50"
+        onHoverStart={() => setShowMenu(true)}
+        onHoverEnd={() => setShowMenu(false)}
+      >
+        {/* Embedded Tweet */}
+        <div className="relative w-full" style={{ minHeight: "250px" }}>
+          <iframe
+            src={embedUrl}
+            className="w-full border-0 pointer-events-none"
+            style={{ minHeight: "250px", height: "350px" }}
+            scrolling="no"
+            loading="lazy"
+          />
+
+          {/* Click overlay to trigger preview modal */}
+          <div className="absolute inset-0 cursor-pointer" onClick={onClick} />
+        </div>
+
+        {/* Tags */}
+        {item.tags.length > 0 && (
+          <div className="px-4 py-3 border-t border-stone-100">
+            <div className="flex flex-wrap gap-1">
+              {item.tags.slice(0, 4).map((tag, index) => (
+                <span
+                  key={`${tag}-${index}`}
+                  className="px-2 py-0.5 bg-stone-100 text-stone-500 rounded-full text-[10px] font-medium max-w-24 truncate"
+                >
+                  {tag}
+                </span>
+              ))}
+              {item.tags.length > 4 && (
+                <span className="px-2 py-0.5 text-stone-400 text-[10px]">
+                  +{item.tags.length - 4}
+                </span>
+              )}
+            </div>
+          </div>
+        )}
+
+        {/* Hover actions */}
+        <motion.div
+          initial={{ opacity: 0 }}
+          animate={{ opacity: showMenu ? 1 : 0 }}
+          className="absolute top-2 right-2 flex items-center gap-1 z-10"
+          onClick={(e) => e.stopPropagation()}
+        >
+          <a
+            href={item.content}
+            target="_blank"
+            rel="noopener noreferrer"
+            className="p-1.5 bg-white/90 backdrop-blur-sm text-stone-600 hover:text-stone-800 rounded-lg shadow-sm transition-colors"
+          >
+            <ArrowTopRightOnSquareIcon className="w-4 h-4" />
+          </a>
+          <button
+            onClick={handleDelete}
+            disabled={isDeleting}
+            className="p-1.5 bg-white/90 backdrop-blur-sm text-stone-400 hover:text-red-500 rounded-lg shadow-sm transition-colors disabled:opacity-50"
+          >
+            <TrashIcon className="w-4 h-4" />
+          </button>
+        </motion.div>
+      </motion.div>
+    );
+  }
+
+  // Standard URL rendering
+  if (item.type === "url") {
     return (
       <motion.div
         layout
@@ -56,7 +169,7 @@ export function ItemCard({ item, onDelete, onClick }: ItemCardProps) {
           <div className="block overflow-hidden bg-stone-100">
             <img
               src={item.image_url}
-              alt={item.title || 'Link preview'}
+              alt={item.title || "Link preview"}
               className="w-full max-h-64 object-cover transition-transform duration-300 group-hover:scale-105"
               loading="lazy"
             />
@@ -129,7 +242,7 @@ export function ItemCard({ item, onDelete, onClick }: ItemCardProps) {
     );
   }
 
-  if (item.type === 'image') {
+  if (item.type === "image") {
     return (
       <motion.div
         layout
@@ -141,7 +254,7 @@ export function ItemCard({ item, onDelete, onClick }: ItemCardProps) {
         <div className="relative">
           <img
             src={item.content}
-            alt={item.title || 'Saved image'}
+            alt={item.title || "Saved image"}
             className="w-full object-cover transition-transform duration-300 group-hover:scale-105"
             loading="lazy"
           />
@@ -201,30 +314,46 @@ export function ItemCard({ item, onDelete, onClick }: ItemCardProps) {
     );
   }
 
-  // Note type
+  // Note type - with code detection
   return (
     <motion.div
       layout
-      className="group relative bg-gradient-to-br from-amber-50 to-orange-50 rounded-xl overflow-hidden shadow-sm hover:shadow-md transition-all duration-200 border border-amber-100/50 cursor-pointer"
+      className={`group relative rounded-xl overflow-hidden shadow-sm hover:shadow-md transition-all duration-200 cursor-pointer ${
+        isCode
+          ? "bg-[#1e1e2e] border border-stone-700/50"
+          : "bg-gradient-to-br from-amber-50 to-orange-50 border border-amber-100/50"
+      }`}
       onHoverStart={() => setShowMenu(true)}
       onHoverEnd={() => setShowMenu(false)}
       onClick={onClick}
     >
       <div className="p-4">
-        <div className="w-8 h-8 rounded-lg bg-amber-100 flex items-center justify-center mb-3">
-          <DocumentTextIcon className="w-4 h-4 text-amber-600" />
+        <div
+          className={`w-8 h-8 rounded-lg flex items-center justify-center mb-3 ${
+            isCode ? "bg-violet-500/20" : "bg-amber-100"
+          }`}
+        >
+          {isCode ? (
+            <CodeBracketIcon className="w-4 h-4 text-violet-400" />
+          ) : (
+            <DocumentTextIcon className="w-4 h-4 text-amber-600" />
+          )}
         </div>
 
-        <p className="text-sm text-stone-700 whitespace-pre-wrap line-clamp-6 mb-3">
-          {item.content}
-        </p>
+        <div className="mb-3">
+          <NoteContent content={item.content} compact maxLines={6} />
+        </div>
 
         {item.tags.length > 0 && (
           <div className="flex flex-wrap gap-1 mb-3">
             {item.tags.slice(0, 4).map((tag, index) => (
               <span
                 key={`${tag}-${index}`}
-                className="px-2 py-0.5 bg-amber-100/50 text-amber-700 rounded-full text-[10px] font-medium max-w-24 truncate"
+                className={`px-2 py-0.5 rounded-full text-[10px] font-medium max-w-24 truncate ${
+                  isCode
+                    ? "bg-violet-500/20 text-violet-300"
+                    : "bg-amber-100/50 text-amber-700"
+                }`}
               >
                 {tag}
               </span>
@@ -232,7 +361,11 @@ export function ItemCard({ item, onDelete, onClick }: ItemCardProps) {
           </div>
         )}
 
-        <div className="flex items-center gap-2 text-[10px] text-stone-400">
+        <div
+          className={`flex items-center gap-2 text-[10px] ${
+            isCode ? "text-stone-500" : "text-stone-400"
+          }`}
+        >
           <span>{formatDate(item.created_at)}</span>
           {item.source_url && (
             <>
@@ -255,7 +388,11 @@ export function ItemCard({ item, onDelete, onClick }: ItemCardProps) {
         <button
           onClick={handleDelete}
           disabled={isDeleting}
-          className="p-1.5 bg-white/90 backdrop-blur-sm text-stone-400 hover:text-red-500 rounded-lg shadow-sm transition-colors disabled:opacity-50"
+          className={`p-1.5 backdrop-blur-sm rounded-lg shadow-sm transition-colors disabled:opacity-50 ${
+            isCode
+              ? "bg-stone-800/90 text-stone-400 hover:text-red-400"
+              : "bg-white/90 text-stone-400 hover:text-red-500"
+          }`}
         >
           <TrashIcon className="w-4 h-4" />
         </button>
@@ -263,4 +400,3 @@ export function ItemCard({ item, onDelete, onClick }: ItemCardProps) {
     </motion.div>
   );
 }
-
