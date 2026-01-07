@@ -128,7 +128,24 @@ pub async fn process_with_ai(
     let client = reqwest::Client::new();
     
     // Build the prompt based on item type
+    // Check if we have actual content (not just a URL)
+    let has_rich_content = description.as_ref().map(|d| d.len() > 20).unwrap_or(false);
+    
     let prompt = match item_type {
+        ItemType::Url if has_rich_content => format!(
+            r#"Analyze this content and return a JSON object with:
+1. "tags": An array of 6-10 descriptive, lowercase tags based on the actual content. Extract key topics, themes, people mentioned, products, concepts, and relevant keywords.
+2. "summary": A concise 2-3 sentence summary of the content.
+
+Source: {}
+Title: {}
+Content: {}
+
+Focus on the actual content when generating tags. Return ONLY valid JSON, no markdown."#,
+            content,
+            title.as_deref().unwrap_or("Unknown"),
+            description.as_deref().unwrap_or("None")
+        ),
         ItemType::Url => format!(
             r#"Analyze this URL and return a JSON object with:
 1. "tags": An array of 6-10 descriptive, lowercase tags
