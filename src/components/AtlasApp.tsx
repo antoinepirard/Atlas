@@ -503,7 +503,7 @@ export function AtlasApp() {
               hasMore={hasMore}
               isLoadingMore={isLoadingMore}
             >
-              {items.map((item, index) => (
+              {items.map((item) => (
                 <motion.div
                   key={item.id}
                   initial={{ opacity: 0 }}
