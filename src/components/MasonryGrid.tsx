@@ -1,24 +1,50 @@
-import { useMemo, ReactNode, useRef, useEffect, useCallback } from 'react';
+import { useMemo, ReactNode, useRef, useEffect, useCallback, useState } from 'react';
 
 interface MasonryGridProps {
   children: ReactNode[];
-  columns?: number;
   gap?: number;
   onLoadMore?: () => void;
   hasMore?: boolean;
   isLoadingMore?: boolean;
 }
 
-export function MasonryGrid({ 
-  children, 
-  columns = 4, 
+function getColumnCount(width: number): number {
+  if (width < 500) return 1;
+  if (width < 700) return 2;
+  if (width < 1000) return 3;
+  if (width < 1300) return 4;
+  if (width < 1600) return 5;
+  return 6;
+}
+
+export function MasonryGrid({
+  children,
   gap = 16,
   onLoadMore,
   hasMore = false,
   isLoadingMore = false,
 }: MasonryGridProps) {
+  const containerRef = useRef<HTMLDivElement | null>(null);
   const observerRef = useRef<IntersectionObserver | null>(null);
   const loadMoreRef = useRef<HTMLDivElement | null>(null);
+  const [columns, setColumns] = useState(4);
+
+  // Responsive column count based on container width
+  useEffect(() => {
+    const container = containerRef.current;
+    if (!container) return;
+
+    const resizeObserver = new ResizeObserver((entries) => {
+      const entry = entries[0];
+      if (entry) {
+        const width = entry.contentRect.width;
+        setColumns(getColumnCount(width));
+      }
+    });
+
+    resizeObserver.observe(container);
+    return () => resizeObserver.disconnect();
+  }, []);
 
   const columnContent = useMemo(() => {
     const cols: ReactNode[][] = Array.from({ length: columns }, () => []);
@@ -59,8 +85,8 @@ export function MasonryGrid({
   }, [handleIntersect, onLoadMore]);
 
   return (
-    <div className="w-full">
-      <div 
+    <div ref={containerRef} className="w-full">
+      <div
         className="grid w-full"
         style={{ 
           gap: `${gap}px`,

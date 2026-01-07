@@ -266,14 +266,6 @@ export function MymindApp() {
     return () => window.removeEventListener("paste", handlePaste);
   }, [addContent, uploadImage]);
 
-  const getColumns = () => {
-    if (typeof window === "undefined") return 4;
-    if (window.innerWidth < 640) return 1;
-    if (window.innerWidth < 768) return 2;
-    if (window.innerWidth < 1024) return 3;
-    return 4;
-  };
-
   return (
     <div className="min-h-screen bg-stone-100">
       <PasteIndicator isVisible={isPasting} />
@@ -388,7 +380,6 @@ export function MymindApp() {
             </motion.div>
           ) : (
             <MasonryGrid
-              columns={getColumns()}
               gap={20}
               onLoadMore={loadMore}
               hasMore={hasMore}
