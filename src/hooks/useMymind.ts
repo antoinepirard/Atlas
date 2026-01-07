@@ -400,6 +400,20 @@ export function useMymind() {
     }
   }, []);
 
+  // Bulk delete items
+  const deleteItems = useCallback(async (itemIds: string[]): Promise<boolean> => {
+    try {
+      // Delete items in parallel
+      await Promise.all(itemIds.map(id => tauri.deleteItem(id)));
+      setItems(prev => prev.filter(item => !itemIds.includes(item.id)));
+      setTotalCount(prev => prev - itemIds.length);
+      return true;
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'An error occurred');
+      return false;
+    }
+  }, []);
+
   const handleSearch = useCallback((query: string) => {
     setSearchQuery(query);
   }, []);
@@ -433,6 +447,7 @@ export function useMymind() {
     addContent,
     uploadImage,
     deleteItem,
+    deleteItems,
     handleSearch,
     handleFilterType,
     loadMore,

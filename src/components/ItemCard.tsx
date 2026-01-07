@@ -6,6 +6,7 @@ import {
   TrashIcon,
   ArrowTopRightOnSquareIcon,
   CodeBracketIcon,
+  CheckIcon,
 } from "@heroicons/react/24/outline";
 import type { MymindItem } from "../types";
 import { NoteContent } from "./CodeBlock";
@@ -40,21 +41,61 @@ interface ItemCardProps {
   item: MymindItem;
   onDelete: () => void;
   onClick?: () => void;
+  isSelected?: boolean;
+  isMultiSelectMode?: boolean;
+  onSelect?: (id: string) => void;
 }
 
-export function ItemCard({ item, onDelete, onClick }: ItemCardProps) {
+export function ItemCard({
+  item,
+  onDelete,
+  onClick,
+  isSelected,
+  isMultiSelectMode,
+  onSelect,
+}: ItemCardProps) {
   const [showMenu, setShowMenu] = useState(false);
   const [isDeleting, setIsDeleting] = useState(false);
 
-  const handleContextMenu = useCallback((e: React.MouseEvent) => {
-    e.preventDefault();
-    e.stopPropagation();
-    showItemContextMenu({
-      itemId: item.id,
-      showOpenExternal: item.type === "url" || item.type === "image",
-      itemType: item.type,
-    });
-  }, [item.id, item.type]);
+  const handleClick = useCallback(
+    (e: React.MouseEvent) => {
+      if (isMultiSelectMode && onSelect) {
+        e.preventDefault();
+        e.stopPropagation();
+        onSelect(item.id);
+      } else {
+        onClick?.();
+      }
+    },
+    [isMultiSelectMode, onSelect, onClick, item.id]
+  );
+
+  // Selection indicator component
+  const SelectionIndicator = () =>
+    isMultiSelectMode && (
+      <div
+        className={`absolute top-2 left-2 z-20 w-6 h-6 rounded-full border-2 flex items-center justify-center transition-all duration-150 ${
+          isSelected
+            ? "bg-amber-500 border-amber-500 scale-100"
+            : "bg-white/80 border-stone-300 scale-90 opacity-70 group-hover:opacity-100 group-hover:scale-100"
+        }`}
+      >
+        {isSelected && <CheckIcon className="w-4 h-4 text-white stroke-[3]" />}
+      </div>
+    );
+
+  const handleContextMenu = useCallback(
+    (e: React.MouseEvent) => {
+      e.preventDefault();
+      e.stopPropagation();
+      showItemContextMenu({
+        itemId: item.id,
+        showOpenExternal: item.type === "url" || item.type === "image",
+        itemType: item.type,
+      });
+    },
+    [item.id, item.type]
+  );
 
   // Check if this is an X/Twitter post
   const xPostInfo = useMemo(() => {
@@ -100,11 +141,15 @@ export function ItemCard({ item, onDelete, onClick }: ItemCardProps) {
     return (
       <motion.div
         layout
-        className="group relative bg-white rounded-xl overflow-hidden shadow-sm hover:shadow-md transition-all duration-200 ring-1 ring-stone-200/50"
+        className={`group relative bg-white rounded-xl overflow-hidden shadow-sm hover:shadow-md transition-all duration-200 ring-1 ${
+          isSelected ? "ring-2 ring-amber-500" : "ring-stone-200/50"
+        }`}
         onHoverStart={() => setShowMenu(true)}
         onHoverEnd={() => setShowMenu(false)}
         onContextMenu={handleContextMenu}
       >
+        <SelectionIndicator />
+
         {/* Embedded Tweet */}
         <div className="relative w-full" style={{ minHeight: "250px" }}>
           <iframe
@@ -118,14 +163,14 @@ export function ItemCard({ item, onDelete, onClick }: ItemCardProps) {
           {/* Click overlay to trigger preview modal */}
           <div
             className="absolute inset-0 cursor-pointer"
-            onClick={onClick}
+            onClick={handleClick}
           />
         </div>
 
         {/* Hover actions */}
         <motion.div
           initial={{ opacity: 0 }}
-          animate={{ opacity: showMenu ? 1 : 0 }}
+          animate={{ opacity: showMenu && !isMultiSelectMode ? 1 : 0 }}
           className="absolute top-2 right-2 flex items-center gap-1 z-10"
           onClick={(e) => e.stopPropagation()}
         >
@@ -152,50 +197,108 @@ export function ItemCard({ item, onDelete, onClick }: ItemCardProps) {
   // Standard URL rendering
   if (item.type === "url") {
     return (
-        <motion.div
-          layout
-          className="group relative bg-white rounded-xl overflow-hidden shadow-sm hover:shadow-md transition-all duration-200 ring-1 ring-stone-200/50 cursor-pointer"
-          onHoverStart={() => setShowMenu(true)}
-          onHoverEnd={() => setShowMenu(false)}
-          onClick={onClick}
-          onContextMenu={handleContextMenu}
-        >
-          {item.image_url && (
-            <div className="block overflow-hidden bg-stone-100">
-              <img
-                src={item.image_url}
-                alt={item.title || "Link preview"}
-                className="w-full max-h-64 object-cover transition-transform duration-300 group-hover:scale-105"
-                loading="lazy"
-              />
-            </div>
-          )}
+      <motion.div
+        layout
+        className={`group relative bg-white rounded-xl overflow-hidden shadow-sm hover:shadow-md transition-all duration-200 ring-1 cursor-pointer ${
+          isSelected ? "ring-2 ring-amber-500" : "ring-stone-200/50"
+        }`}
+        onHoverStart={() => setShowMenu(true)}
+        onHoverEnd={() => setShowMenu(false)}
+        onClick={handleClick}
+        onContextMenu={handleContextMenu}
+      >
+        <SelectionIndicator />
 
-          <div className="p-4">
-            <div className="block">
-              {item.title && (
-                <h3 className="text-sm font-medium text-stone-800 mb-1 line-clamp-2 group-hover:text-amber-600 transition-colors">
-                  {item.title}
-                </h3>
-              )}
-              {item.description && (
-                <p className="text-xs text-stone-500 line-clamp-2 mb-2">
-                  {item.description}
-                </p>
-              )}
-            </div>
-
-            <div className="flex items-center gap-2 text-xs text-stone-400">
-              <LinkIcon className="w-3.5 h-3.5" />
-              <span className="truncate">{getDomain(item.content)}</span>
-              <span>·</span>
-              <span>{formatDate(item.created_at)}</span>
-            </div>
+        {item.image_url && (
+          <div className="block overflow-hidden bg-stone-100">
+            <img
+              src={item.image_url}
+              alt={item.title || "Link preview"}
+              className="w-full max-h-64 object-cover transition-transform duration-300 group-hover:scale-105"
+              loading="lazy"
+            />
           </div>
+        )}
+
+        <div className="p-4">
+          <div className="block">
+            {item.title && (
+              <h3 className="text-sm font-medium text-stone-800 mb-1 line-clamp-2 group-hover:text-amber-600 transition-colors">
+                {item.title}
+              </h3>
+            )}
+            {item.description && (
+              <p className="text-xs text-stone-500 line-clamp-2 mb-2">
+                {item.description}
+              </p>
+            )}
+          </div>
+
+          <div className="flex items-center gap-2 text-xs text-stone-400">
+            <LinkIcon className="w-3.5 h-3.5" />
+            <span className="truncate">{getDomain(item.content)}</span>
+            <span>·</span>
+            <span>{formatDate(item.created_at)}</span>
+          </div>
+        </div>
+
+        <motion.div
+          initial={{ opacity: 0 }}
+          animate={{ opacity: showMenu && !isMultiSelectMode ? 1 : 0 }}
+          className="absolute top-2 right-2 flex items-center gap-1"
+          onClick={(e) => e.stopPropagation()}
+        >
+          <a
+            href={item.content}
+            target="_blank"
+            rel="noopener noreferrer"
+            className="p-1.5 bg-white/90 backdrop-blur-sm text-stone-600 hover:text-stone-800 rounded-lg shadow-sm transition-colors"
+          >
+            <ArrowTopRightOnSquareIcon className="w-4 h-4" />
+          </a>
+          <button
+            onClick={handleDelete}
+            disabled={isDeleting}
+            className="p-1.5 bg-white/90 backdrop-blur-sm text-stone-400 hover:text-red-500 rounded-lg shadow-sm transition-colors disabled:opacity-50"
+          >
+            <TrashIcon className="w-4 h-4" />
+          </button>
+        </motion.div>
+      </motion.div>
+    );
+  }
+
+  if (item.type === "image") {
+    return (
+      <motion.div
+        layout
+        className={`group relative rounded-xl overflow-hidden shadow-sm hover:shadow-md transition-all duration-200 cursor-pointer ${
+          isSelected ? "ring-2 ring-amber-500" : ""
+        }`}
+        onHoverStart={() => setShowMenu(true)}
+        onHoverEnd={() => setShowMenu(false)}
+        onClick={handleClick}
+        onContextMenu={handleContextMenu}
+      >
+        <SelectionIndicator />
+
+        <div className="relative">
+          <img
+            src={item.image_url || item.content}
+            alt={item.title || "Saved image"}
+            className="w-full object-cover transition-transform duration-300 group-hover:scale-105"
+            loading="lazy"
+          />
 
           <motion.div
             initial={{ opacity: 0 }}
             animate={{ opacity: showMenu ? 1 : 0 }}
+            className="absolute inset-0 bg-gradient-to-t from-black/60 via-black/20 to-transparent"
+          />
+
+          <motion.div
+            initial={{ opacity: 0 }}
+            animate={{ opacity: showMenu && !isMultiSelectMode ? 1 : 0 }}
             className="absolute top-2 right-2 flex items-center gap-1"
             onClick={(e) => e.stopPropagation()}
           >
@@ -215,138 +318,90 @@ export function ItemCard({ item, onDelete, onClick }: ItemCardProps) {
               <TrashIcon className="w-4 h-4" />
             </button>
           </motion.div>
-        </motion.div>
-    );
-  }
 
-  if (item.type === "image") {
-    return (
-        <motion.div
-          layout
-          className="group relative rounded-xl overflow-hidden shadow-sm hover:shadow-md transition-all duration-200 cursor-pointer"
-          onHoverStart={() => setShowMenu(true)}
-          onHoverEnd={() => setShowMenu(false)}
-          onClick={onClick}
-          onContextMenu={handleContextMenu}
-        >
-          <div className="relative">
-            <img
-              src={item.image_url || item.content}
-              alt={item.title || "Saved image"}
-              className="w-full object-cover transition-transform duration-300 group-hover:scale-105"
-              loading="lazy"
-            />
-
-            <motion.div
-              initial={{ opacity: 0 }}
-              animate={{ opacity: showMenu ? 1 : 0 }}
-              className="absolute inset-0 bg-gradient-to-t from-black/60 via-black/20 to-transparent"
-            />
-
-            <motion.div
-              initial={{ opacity: 0 }}
-              animate={{ opacity: showMenu ? 1 : 0 }}
-              className="absolute top-2 right-2 flex items-center gap-1"
-              onClick={(e) => e.stopPropagation()}
-            >
-              <a
-                href={item.content}
-                target="_blank"
-                rel="noopener noreferrer"
-                className="p-1.5 bg-white/90 backdrop-blur-sm text-stone-600 hover:text-stone-800 rounded-lg shadow-sm transition-colors"
-              >
-                <ArrowTopRightOnSquareIcon className="w-4 h-4" />
-              </a>
-              <button
-                onClick={handleDelete}
-                disabled={isDeleting}
-                className="p-1.5 bg-white/90 backdrop-blur-sm text-stone-400 hover:text-red-500 rounded-lg shadow-sm transition-colors disabled:opacity-50"
-              >
-                <TrashIcon className="w-4 h-4" />
-              </button>
-            </motion.div>
-
-            <motion.div
-              initial={{ opacity: 0, y: 10 }}
-              animate={{ opacity: showMenu ? 1 : 0, y: showMenu ? 0 : 10 }}
-              className="absolute bottom-0 left-0 right-0 p-3 flex items-end justify-end"
-            >
-              <span className="text-[10px] text-white/80 font-medium">
-                {formatDate(item.created_at)}
-              </span>
-            </motion.div>
-          </div>
-        </motion.div>
+          <motion.div
+            initial={{ opacity: 0, y: 10 }}
+            animate={{ opacity: showMenu ? 1 : 0, y: showMenu ? 0 : 10 }}
+            className="absolute bottom-0 left-0 right-0 p-3 flex items-end justify-end"
+          >
+            <span className="text-[10px] text-white/80 font-medium">
+              {formatDate(item.created_at)}
+            </span>
+          </motion.div>
+        </div>
+      </motion.div>
     );
   }
 
   // Note type - with code detection
   return (
-      <motion.div
-        layout
-        className={`group relative rounded-xl overflow-hidden shadow-sm hover:shadow-md transition-all duration-200 cursor-pointer ${
-          isCode
-            ? "bg-[#1e1e2e] border border-stone-700/50"
-            : "bg-gradient-to-br from-amber-50 to-orange-50 border border-amber-100/50"
-        }`}
-        onHoverStart={() => setShowMenu(true)}
-        onHoverEnd={() => setShowMenu(false)}
-        onClick={onClick}
-        onContextMenu={handleContextMenu}
-      >
-        <div className="p-4">
-          <div
-            className={`w-8 h-8 rounded-lg flex items-center justify-center mb-3 ${
-              isCode ? "bg-violet-500/20" : "bg-amber-100"
-            }`}
-          >
-            {isCode ? (
-              <CodeBracketIcon className="w-4 h-4 text-violet-400" />
-            ) : (
-              <DocumentTextIcon className="w-4 h-4 text-amber-600" />
-            )}
-          </div>
+    <motion.div
+      layout
+      className={`group relative rounded-xl overflow-hidden shadow-sm hover:shadow-md transition-all duration-200 cursor-pointer ${
+        isCode
+          ? "bg-[#1e1e2e] border border-stone-700/50"
+          : "bg-gradient-to-br from-amber-50 to-orange-50 border border-amber-100/50"
+      } ${isSelected ? "ring-2 ring-amber-500" : ""}`}
+      onHoverStart={() => setShowMenu(true)}
+      onHoverEnd={() => setShowMenu(false)}
+      onClick={handleClick}
+      onContextMenu={handleContextMenu}
+    >
+      <SelectionIndicator />
 
-          <div className="mb-3">
-            <NoteContent content={item.content} compact maxLines={6} />
-          </div>
-
-          <div
-            className={`flex items-center gap-2 text-[10px] ${
-              isCode ? "text-stone-500" : "text-stone-400"
-            }`}
-          >
-            <span>{formatDate(item.created_at)}</span>
-            {item.source_url && (
-              <>
-                <span>·</span>
-                <span className="flex items-center gap-1 truncate">
-                  <LinkIcon className="w-3 h-3" />
-                  {getDomain(item.source_url)}
-                </span>
-              </>
-            )}
-          </div>
+      <div className="p-4">
+        <div
+          className={`w-8 h-8 rounded-lg flex items-center justify-center mb-3 ${
+            isCode ? "bg-violet-500/20" : "bg-amber-100"
+          }`}
+        >
+          {isCode ? (
+            <CodeBracketIcon className="w-4 h-4 text-violet-400" />
+          ) : (
+            <DocumentTextIcon className="w-4 h-4 text-amber-600" />
+          )}
         </div>
 
-        <motion.div
-          initial={{ opacity: 0 }}
-          animate={{ opacity: showMenu ? 1 : 0 }}
-          className="absolute top-2 right-2 flex items-center gap-1"
-          onClick={(e) => e.stopPropagation()}
+        <div className="mb-3">
+          <NoteContent content={item.content} compact maxLines={6} />
+        </div>
+
+        <div
+          className={`flex items-center gap-2 text-[10px] ${
+            isCode ? "text-stone-500" : "text-stone-400"
+          }`}
         >
-          <button
-            onClick={handleDelete}
-            disabled={isDeleting}
-            className={`p-1.5 backdrop-blur-sm rounded-lg shadow-sm transition-colors disabled:opacity-50 ${
-              isCode
-                ? "bg-stone-800/90 text-stone-400 hover:text-red-400"
-                : "bg-white/90 text-stone-400 hover:text-red-500"
-            }`}
-          >
-            <TrashIcon className="w-4 h-4" />
-          </button>
-        </motion.div>
+          <span>{formatDate(item.created_at)}</span>
+          {item.source_url && (
+            <>
+              <span>·</span>
+              <span className="flex items-center gap-1 truncate">
+                <LinkIcon className="w-3 h-3" />
+                {getDomain(item.source_url)}
+              </span>
+            </>
+          )}
+        </div>
+      </div>
+
+      <motion.div
+        initial={{ opacity: 0 }}
+        animate={{ opacity: showMenu && !isMultiSelectMode ? 1 : 0 }}
+        className="absolute top-2 right-2 flex items-center gap-1"
+        onClick={(e) => e.stopPropagation()}
+      >
+        <button
+          onClick={handleDelete}
+          disabled={isDeleting}
+          className={`p-1.5 backdrop-blur-sm rounded-lg shadow-sm transition-colors disabled:opacity-50 ${
+            isCode
+              ? "bg-stone-800/90 text-stone-400 hover:text-red-400"
+              : "bg-white/90 text-stone-400 hover:text-red-500"
+          }`}
+        >
+          <TrashIcon className="w-4 h-4" />
+        </button>
       </motion.div>
+    </motion.div>
   );
 }

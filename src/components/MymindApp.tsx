@@ -15,6 +15,7 @@ import { SettingsModal } from "./SettingsModal";
 import { TypeFilter } from "./TypeFilter";
 import { PasteIndicator } from "./PasteIndicator";
 import { UpdateToast } from "./UpdateToast";
+import { SelectionActionBar } from "./SelectionActionBar";
 import type { QuickCaptureData } from "./QuickCaptureModal";
 import { useVault } from "./VaultProvider";
 import { useMymind } from "../hooks/useMymind";
@@ -28,6 +29,12 @@ export function MymindApp() {
   const [isSettingsOpen, setIsSettingsOpen] = useState(false);
   const [isPasting, setIsPasting] = useState(false);
   const [selectedItem, setSelectedItem] = useState<MymindItem | null>(null);
+
+  // Multi-select state
+  const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
+  const [isMultiSelectMode, setIsMultiSelectMode] = useState(false);
+  const [isDeleting, setIsDeleting] = useState(false);
+
   const {
     items,
     hasMore,
@@ -39,10 +46,70 @@ export function MymindApp() {
     addContent,
     uploadImage,
     deleteItem,
+    deleteItems,
     handleSearch,
     handleFilterType,
     loadMore,
   } = useMymind();
+
+  // Multi-select handlers
+  const handleSelect = useCallback((id: string) => {
+    setSelectedIds((prev) => {
+      const next = new Set(prev);
+      if (next.has(id)) {
+        next.delete(id);
+      } else {
+        next.add(id);
+      }
+      return next;
+    });
+  }, []);
+
+  const clearSelection = useCallback(() => {
+    setSelectedIds(new Set());
+  }, []);
+
+  const handleBulkDelete = useCallback(async () => {
+    if (selectedIds.size === 0) return;
+    setIsDeleting(true);
+    await deleteItems(Array.from(selectedIds));
+    setSelectedIds(new Set());
+    setIsDeleting(false);
+  }, [selectedIds, deleteItems]);
+
+  // Track CMD key for multi-select mode
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.key === "Meta" || e.key === "Control") {
+        setIsMultiSelectMode(true);
+      }
+      // Escape to clear selection
+      if (e.key === "Escape" && selectedIds.size > 0) {
+        clearSelection();
+      }
+    };
+
+    const handleKeyUp = (e: KeyboardEvent) => {
+      if (e.key === "Meta" || e.key === "Control") {
+        setIsMultiSelectMode(false);
+      }
+    };
+
+    // Also handle when window loses focus (cmd+tab etc)
+    const handleBlur = () => {
+      setIsMultiSelectMode(false);
+    };
+
+    window.addEventListener("keydown", handleKeyDown);
+    window.addEventListener("keyup", handleKeyUp);
+    window.addEventListener("blur", handleBlur);
+
+    return () => {
+      window.removeEventListener("keydown", handleKeyDown);
+      window.removeEventListener("keyup", handleKeyUp);
+      window.removeEventListener("blur", handleBlur);
+    };
+  }, [selectedIds.size, clearSelection]);
 
   const handleAddContent = useCallback(
     async (content: string) => {
@@ -448,6 +515,11 @@ export function MymindApp() {
                     item={item}
                     onDelete={() => deleteItem(item.id)}
                     onClick={() => setSelectedItem(item)}
+                    isSelected={selectedIds.has(item.id)}
+                    isMultiSelectMode={
+                      isMultiSelectMode || selectedIds.size > 0
+                    }
+                    onSelect={handleSelect}
                   />
                 </motion.div>
               ))}
@@ -486,6 +558,13 @@ export function MymindApp() {
       />
 
       <UpdateToast onOpenSettings={() => setIsSettingsOpen(true)} />
+
+      <SelectionActionBar
+        selectedCount={selectedIds.size}
+        onDelete={handleBulkDelete}
+        onClear={clearSelection}
+        isDeleting={isDeleting}
+      />
     </div>
   );
 }
