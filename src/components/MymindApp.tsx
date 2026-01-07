@@ -78,6 +78,34 @@ export function MymindApp() {
     [uploadImage]
   );
 
+  // Listen for context menu actions from native menu
+  useEffect(() => {
+    const unlisten = listen<{ action: string; item_id: string }>(
+      "context-menu-action",
+      async (event) => {
+        const { action, item_id } = event.payload;
+        const item = items.find((i) => i.id === item_id);
+        if (!item) return;
+
+        switch (action) {
+          case "open_external":
+            window.open(item.content, "_blank", "noopener,noreferrer");
+            break;
+          case "copy":
+            navigator.clipboard.writeText(item.content);
+            break;
+          case "delete":
+            await deleteItem(item_id);
+            break;
+        }
+      }
+    );
+
+    return () => {
+      unlisten.then((fn) => fn());
+    };
+  }, [items, deleteItem]);
+
   // Listen for quick-capture events from Tauri - save automatically in the background
   useEffect(() => {
     const unlisten = listen<QuickCaptureData>(

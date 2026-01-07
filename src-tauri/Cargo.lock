@@ -194,6 +194,7 @@ dependencies = [
  "hex",
  "image",
  "keyring",
+ "once_cell",
  "pbkdf2",
  "rand 0.8.5",
  "reqwest",

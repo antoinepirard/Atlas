@@ -1,96 +1,16 @@
-import { useState, useCallback, useMemo, useEffect } from "react";
-import { motion, AnimatePresence } from "motion/react";
+import { useState, useCallback, useMemo } from "react";
+import { motion } from "motion/react";
 import {
   LinkIcon,
   DocumentTextIcon,
   TrashIcon,
   ArrowTopRightOnSquareIcon,
   CodeBracketIcon,
-  ClipboardIcon,
 } from "@heroicons/react/24/outline";
 import type { MymindItem } from "../types";
 import { NoteContent } from "./CodeBlock";
 import { detectCode } from "../utils/codeDetection";
-
-interface ContextMenuProps {
-  x: number;
-  y: number;
-  onClose: () => void;
-  onDelete: () => void;
-  onOpenExternal?: () => void;
-  onCopy: () => void;
-  showOpenExternal: boolean;
-}
-
-function ContextMenu({
-  x,
-  y,
-  onClose,
-  onDelete,
-  onOpenExternal,
-  onCopy,
-  showOpenExternal,
-}: ContextMenuProps) {
-  useEffect(() => {
-    const handleClick = () => onClose();
-    const handleScroll = () => onClose();
-    window.addEventListener("click", handleClick);
-    window.addEventListener("scroll", handleScroll, true);
-    return () => {
-      window.removeEventListener("click", handleClick);
-      window.removeEventListener("scroll", handleScroll, true);
-    };
-  }, [onClose]);
-
-  return (
-    <motion.div
-      initial={{ opacity: 0, scale: 0.95 }}
-      animate={{ opacity: 1, scale: 1 }}
-      exit={{ opacity: 0, scale: 0.95 }}
-      transition={{ duration: 0.1 }}
-      className="fixed z-50 bg-white rounded-lg shadow-lg ring-1 ring-stone-200 py-1 min-w-[160px]"
-      style={{ left: x, top: y }}
-      onClick={(e) => e.stopPropagation()}
-    >
-      {showOpenExternal && onOpenExternal && (
-        <button
-          onClick={(e) => {
-            e.stopPropagation();
-            onOpenExternal();
-            onClose();
-          }}
-          className="w-full px-3 py-2 text-left text-sm text-stone-700 hover:bg-stone-100 flex items-center gap-2"
-        >
-          <ArrowTopRightOnSquareIcon className="w-4 h-4" />
-          Open in browser
-        </button>
-      )}
-      <button
-        onClick={(e) => {
-          e.stopPropagation();
-          onCopy();
-          onClose();
-        }}
-        className="w-full px-3 py-2 text-left text-sm text-stone-700 hover:bg-stone-100 flex items-center gap-2"
-      >
-        <ClipboardIcon className="w-4 h-4" />
-        Copy
-      </button>
-      <div className="border-t border-stone-100 my-1" />
-      <button
-        onClick={(e) => {
-          e.stopPropagation();
-          onDelete();
-          onClose();
-        }}
-        className="w-full px-3 py-2 text-left text-sm text-red-600 hover:bg-red-50 flex items-center gap-2"
-      >
-        <TrashIcon className="w-4 h-4" />
-        Delete
-      </button>
-    </motion.div>
-  );
-}
+import { showItemContextMenu } from "../lib/tauri";
 
 // Detect X/Twitter post URL and extract info
 function getXPostInfo(
@@ -125,24 +45,16 @@ interface ItemCardProps {
 export function ItemCard({ item, onDelete, onClick }: ItemCardProps) {
   const [showMenu, setShowMenu] = useState(false);
   const [isDeleting, setIsDeleting] = useState(false);
-  const [contextMenu, setContextMenu] = useState<{
-    x: number;
-    y: number;
-  } | null>(null);
 
   const handleContextMenu = useCallback((e: React.MouseEvent) => {
     e.preventDefault();
     e.stopPropagation();
-    setContextMenu({ x: e.clientX, y: e.clientY });
-  }, []);
-
-  const handleOpenExternal = useCallback(() => {
-    window.open(item.content, "_blank", "noopener,noreferrer");
-  }, [item.content]);
-
-  const handleCopy = useCallback(() => {
-    navigator.clipboard.writeText(item.content);
-  }, [item.content]);
+    showItemContextMenu({
+      itemId: item.id,
+      showOpenExternal: item.type === "url" || item.type === "image",
+      itemType: item.type,
+    });
+  }, [item.id, item.type]);
 
   // Check if this is an X/Twitter post
   const xPostInfo = useMemo(() => {
@@ -186,76 +98,60 @@ export function ItemCard({ item, onDelete, onClick }: ItemCardProps) {
     const embedUrl = `https://platform.twitter.com/embed/Tweet.html?dnt=true&id=${xPostInfo.postId}&theme=light`;
 
     return (
-      <>
+      <motion.div
+        layout
+        className="group relative bg-white rounded-xl overflow-hidden shadow-sm hover:shadow-md transition-all duration-200 ring-1 ring-stone-200/50"
+        onHoverStart={() => setShowMenu(true)}
+        onHoverEnd={() => setShowMenu(false)}
+        onContextMenu={handleContextMenu}
+      >
+        {/* Embedded Tweet */}
+        <div className="relative w-full" style={{ minHeight: "250px" }}>
+          <iframe
+            src={embedUrl}
+            className="w-full border-0 pointer-events-none"
+            style={{ minHeight: "250px", height: "350px" }}
+            scrolling="no"
+            loading="lazy"
+          />
+
+          {/* Click overlay to trigger preview modal */}
+          <div
+            className="absolute inset-0 cursor-pointer"
+            onClick={onClick}
+          />
+        </div>
+
+        {/* Hover actions */}
         <motion.div
-          layout
-          className="group relative bg-white rounded-xl overflow-hidden shadow-sm hover:shadow-md transition-all duration-200 ring-1 ring-stone-200/50"
-          onHoverStart={() => setShowMenu(true)}
-          onHoverEnd={() => setShowMenu(false)}
-          onContextMenu={handleContextMenu}
+          initial={{ opacity: 0 }}
+          animate={{ opacity: showMenu ? 1 : 0 }}
+          className="absolute top-2 right-2 flex items-center gap-1 z-10"
+          onClick={(e) => e.stopPropagation()}
         >
-          {/* Embedded Tweet */}
-          <div className="relative w-full" style={{ minHeight: "250px" }}>
-            <iframe
-              src={embedUrl}
-              className="w-full border-0 pointer-events-none"
-              style={{ minHeight: "250px", height: "350px" }}
-              scrolling="no"
-              loading="lazy"
-            />
-
-            {/* Click overlay to trigger preview modal */}
-            <div
-              className="absolute inset-0 cursor-pointer"
-              onClick={onClick}
-            />
-          </div>
-
-          {/* Hover actions */}
-          <motion.div
-            initial={{ opacity: 0 }}
-            animate={{ opacity: showMenu ? 1 : 0 }}
-            className="absolute top-2 right-2 flex items-center gap-1 z-10"
-            onClick={(e) => e.stopPropagation()}
+          <a
+            href={item.content}
+            target="_blank"
+            rel="noopener noreferrer"
+            className="p-1.5 bg-white/90 backdrop-blur-sm text-stone-600 hover:text-stone-800 rounded-lg shadow-sm transition-colors"
           >
-            <a
-              href={item.content}
-              target="_blank"
-              rel="noopener noreferrer"
-              className="p-1.5 bg-white/90 backdrop-blur-sm text-stone-600 hover:text-stone-800 rounded-lg shadow-sm transition-colors"
-            >
-              <ArrowTopRightOnSquareIcon className="w-4 h-4" />
-            </a>
-            <button
-              onClick={handleDelete}
-              disabled={isDeleting}
-              className="p-1.5 bg-white/90 backdrop-blur-sm text-stone-400 hover:text-red-500 rounded-lg shadow-sm transition-colors disabled:opacity-50"
-            >
-              <TrashIcon className="w-4 h-4" />
-            </button>
-          </motion.div>
+            <ArrowTopRightOnSquareIcon className="w-4 h-4" />
+          </a>
+          <button
+            onClick={handleDelete}
+            disabled={isDeleting}
+            className="p-1.5 bg-white/90 backdrop-blur-sm text-stone-400 hover:text-red-500 rounded-lg shadow-sm transition-colors disabled:opacity-50"
+          >
+            <TrashIcon className="w-4 h-4" />
+          </button>
         </motion.div>
-        <AnimatePresence>
-          {contextMenu && (
-            <ContextMenu
-              x={contextMenu.x}
-              y={contextMenu.y}
-              onClose={() => setContextMenu(null)}
-              onDelete={handleDelete}
-              onOpenExternal={handleOpenExternal}
-              onCopy={handleCopy}
-              showOpenExternal={true}
-            />
-          )}
-        </AnimatePresence>
-      </>
+      </motion.div>
     );
   }
 
   // Standard URL rendering
   if (item.type === "url") {
     return (
-      <>
         <motion.div
           layout
           className="group relative bg-white rounded-xl overflow-hidden shadow-sm hover:shadow-md transition-all duration-200 ring-1 ring-stone-200/50 cursor-pointer"
@@ -320,26 +216,11 @@ export function ItemCard({ item, onDelete, onClick }: ItemCardProps) {
             </button>
           </motion.div>
         </motion.div>
-        <AnimatePresence>
-          {contextMenu && (
-            <ContextMenu
-              x={contextMenu.x}
-              y={contextMenu.y}
-              onClose={() => setContextMenu(null)}
-              onDelete={handleDelete}
-              onOpenExternal={handleOpenExternal}
-              onCopy={handleCopy}
-              showOpenExternal={true}
-            />
-          )}
-        </AnimatePresence>
-      </>
     );
   }
 
   if (item.type === "image") {
     return (
-      <>
         <motion.div
           layout
           className="group relative rounded-xl overflow-hidden shadow-sm hover:shadow-md transition-all duration-200 cursor-pointer"
@@ -396,26 +277,11 @@ export function ItemCard({ item, onDelete, onClick }: ItemCardProps) {
             </motion.div>
           </div>
         </motion.div>
-        <AnimatePresence>
-          {contextMenu && (
-            <ContextMenu
-              x={contextMenu.x}
-              y={contextMenu.y}
-              onClose={() => setContextMenu(null)}
-              onDelete={handleDelete}
-              onOpenExternal={handleOpenExternal}
-              onCopy={handleCopy}
-              showOpenExternal={true}
-            />
-          )}
-        </AnimatePresence>
-      </>
     );
   }
 
   // Note type - with code detection
   return (
-    <>
       <motion.div
         layout
         className={`group relative rounded-xl overflow-hidden shadow-sm hover:shadow-md transition-all duration-200 cursor-pointer ${
@@ -482,18 +348,5 @@ export function ItemCard({ item, onDelete, onClick }: ItemCardProps) {
           </button>
         </motion.div>
       </motion.div>
-      <AnimatePresence>
-        {contextMenu && (
-          <ContextMenu
-            x={contextMenu.x}
-            y={contextMenu.y}
-            onClose={() => setContextMenu(null)}
-            onDelete={handleDelete}
-            onCopy={handleCopy}
-            showOpenExternal={false}
-          />
-        )}
-      </AnimatePresence>
-    </>
   );
 }

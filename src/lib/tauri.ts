@@ -200,3 +200,20 @@ export async function openAccessibilitySettings(): Promise<void> {
   return invoke('open_accessibility_settings');
 }
 
+// Context menu
+export interface ContextMenuOptions {
+  itemId: string;
+  showOpenExternal: boolean;
+  itemType: string;
+}
+
+export async function showItemContextMenu(options: ContextMenuOptions): Promise<void> {
+  return invoke('show_item_context_menu', {
+    options: {
+      item_id: options.itemId,
+      show_open_external: options.showOpenExternal,
+      item_type: options.itemType,
+    },
+  });
+}
+

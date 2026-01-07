@@ -163,6 +163,21 @@ pub fn run() {
             Ok(())
         })
         .on_menu_event(|app, event| {
+            // Handle context menu actions (ctx_ prefixed IDs)
+            if event.id().as_ref().starts_with("ctx_") {
+                if let Some(window) = app.get_webview_window("main") {
+                    if let Some(item_id) = commands::menu::get_current_context_item_id() {
+                        let action = event.id().as_ref().strip_prefix("ctx_").unwrap_or("");
+                        let payload = serde_json::json!({
+                            "action": action,
+                            "item_id": item_id
+                        });
+                        let _ = window.emit("context-menu-action", payload);
+                    }
+                }
+                return;
+            }
+
             match event.id().as_ref() {
                 "check_updates" => {
                     // Emit event to frontend to trigger update check
@@ -269,6 +284,8 @@ pub fn run() {
             check_accessibility_permission,
             request_accessibility_permission,
             open_accessibility_settings,
+            // Context menu
+            commands::show_item_context_menu,
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");
