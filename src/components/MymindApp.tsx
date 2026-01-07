@@ -11,7 +11,7 @@ import { SettingsModal } from './SettingsModal';
 import { TypeFilter } from './TypeFilter';
 import { PasteIndicator } from './PasteIndicator';
 import { UpdateToast } from './UpdateToast';
-import { QuickCaptureModal, QuickCaptureData } from './QuickCaptureModal';
+import type { QuickCaptureData } from './QuickCaptureModal';
 import { useVault } from './VaultProvider';
 import { useMymind } from '../hooks/useMymind';
 import { startWindowDrag } from '../lib/tauri';
@@ -23,8 +23,6 @@ export function MymindApp() {
   const [isSettingsOpen, setIsSettingsOpen] = useState(false);
   const [isPasting, setIsPasting] = useState(false);
   const [selectedItem, setSelectedItem] = useState<MymindItem | null>(null);
-  const [isQuickCaptureOpen, setIsQuickCaptureOpen] = useState(false);
-  const [quickCaptureData, setQuickCaptureData] = useState<QuickCaptureData | null>(null);
   const {
     items,
     isLoading,
@@ -48,30 +46,38 @@ export function MymindApp() {
     setIsAddModalOpen(false);
   }, [uploadImage]);
 
-  // Quick capture handlers
-  const handleQuickCaptureSaveUrl = useCallback(async (url: string) => {
-    await addContent(url);
-  }, [addContent]);
-
-  const handleQuickCaptureSaveNote = useCallback(async (text: string, sourceUrl?: string) => {
-    // If there's a source URL, append it as a reference
-    const contentWithSource = sourceUrl 
-      ? `${text}\n\n---\nSource: ${sourceUrl}`
-      : text;
-    await addContent(contentWithSource);
-  }, [addContent]);
-
-  // Listen for quick-capture events from Tauri
+  // Listen for quick-capture events from Tauri - save automatically in the background
   useEffect(() => {
-    const unlisten = listen<QuickCaptureData>('quick-capture', (event) => {
-      setQuickCaptureData(event.payload);
-      setIsQuickCaptureOpen(true);
+    const unlisten = listen<QuickCaptureData>('quick-capture', async (event) => {
+      const data = event.payload;
+      const hasUrl = data.url && data.url.length > 0;
+      const hasText = data.selected_text && data.selected_text.trim().length > 0;
+
+      if (!hasUrl && !hasText) return;
+
+      try {
+        // Save URL if present
+        if (hasUrl && data.url) {
+          await addContent(data.url);
+        }
+        
+        // Save text as note if present (with source reference if URL exists)
+        if (hasText && data.selected_text) {
+          const text = data.selected_text.trim();
+          const contentWithSource = hasUrl && data.url
+            ? `${text}\n\n---\nSource: ${data.url}`
+            : text;
+          await addContent(contentWithSource);
+        }
+      } catch (error) {
+        console.error('Quick capture failed:', error);
+      }
     });
 
     return () => {
       unlisten.then(fn => fn());
     };
-  }, []);
+  }, [addContent]);
 
   // Global paste handler
   useEffect(() => {
@@ -266,17 +272,6 @@ export function MymindApp() {
       <SettingsModal
         isOpen={isSettingsOpen}
         onClose={() => setIsSettingsOpen(false)}
-      />
-
-      <QuickCaptureModal
-        isOpen={isQuickCaptureOpen}
-        captureData={quickCaptureData}
-        onClose={() => {
-          setIsQuickCaptureOpen(false);
-          setQuickCaptureData(null);
-        }}
-        onSaveUrl={handleQuickCaptureSaveUrl}
-        onSaveNote={handleQuickCaptureSaveNote}
       />
 
       <UpdateToast onOpenSettings={() => setIsSettingsOpen(true)} />
