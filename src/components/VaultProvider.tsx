@@ -50,8 +50,27 @@ export function VaultProvider({ children }: VaultProviderProps) {
   });
   const [isLoading, setIsLoading] = useState(true);
   const [wasManuallyLocked, setWasManuallyLocked] = useState(false);
+  const [isWindowVisible, setIsWindowVisible] = useState(!document.hidden);
   const lastActivityRef = useRef<number>(Date.now());
   const autoLockTimerRef = useRef<number | null>(null);
+
+  // Track window visibility to disable auto-lock when app is in background
+  // This allows background saves to work without the vault auto-locking
+  useEffect(() => {
+    const handleVisibilityChange = () => {
+      const visible = !document.hidden;
+      setIsWindowVisible(visible);
+      // Reset activity timer when window becomes visible again
+      if (visible) {
+        lastActivityRef.current = Date.now();
+      }
+    };
+
+    document.addEventListener("visibilitychange", handleVisibilityChange);
+    return () => {
+      document.removeEventListener("visibilitychange", handleVisibilityChange);
+    };
+  }, []);
 
   // Fetch vault status
   const refreshStatus = useCallback(async () => {
@@ -94,9 +113,21 @@ export function VaultProvider({ children }: VaultProviderProps) {
     };
   }, [status.unlocked]);
 
-  // Auto-lock timer
+  // Auto-lock timer - disabled when window is not visible (background mode)
+  // This allows the app to save content in background via global shortcut
+  // without auto-locking during the save operation
   useEffect(() => {
     if (!status.unlocked) {
+      if (autoLockTimerRef.current) {
+        clearInterval(autoLockTimerRef.current);
+        autoLockTimerRef.current = null;
+      }
+      return;
+    }
+
+    // Don't auto-lock when window is hidden (background mode)
+    // This is important for background quick capture to work
+    if (!isWindowVisible) {
       if (autoLockTimerRef.current) {
         clearInterval(autoLockTimerRef.current);
         autoLockTimerRef.current = null;
@@ -118,7 +149,7 @@ export function VaultProvider({ children }: VaultProviderProps) {
         clearInterval(autoLockTimerRef.current);
       }
     };
-  }, [status.unlocked, status.auto_lock_minutes]);
+  }, [status.unlocked, status.auto_lock_minutes, isWindowVisible]);
 
   const createVault = useCallback(
     async (password: string): Promise<string[]> => {

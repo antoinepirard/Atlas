@@ -1,3 +1,4 @@
+use crate::capture::QuickCaptureData;
 use crate::commands::vault::VaultState;
 use crate::crypto;
 use crate::db::{EncryptedItem, FtsEntry};
@@ -470,4 +471,140 @@ pub fn get_items_page(
         total,
         has_more,
     })
+}
+
+/// Add item from quick capture data (background save, no frontend required)
+/// This is called directly from the global shortcut handler
+pub fn add_item_from_capture(
+    data: QuickCaptureData,
+    state: State<VaultState>,
+) -> Result<Vec<MymindItem>, String> {
+    let key = state.get_key().ok_or("Vault is locked")?;
+    
+    let has_url = data.url.as_ref().map(|u| !u.is_empty()).unwrap_or(false);
+    let has_text = data.selected_text.as_ref().map(|t| !t.trim().is_empty()).unwrap_or(false);
+    
+    if !has_url && !has_text {
+        return Err("No content to save".to_string());
+    }
+    
+    let mut saved_items = Vec::new();
+    let source_url = data.url.clone();
+    
+    // Save URL as a link if present
+    if has_url {
+        if let Some(url) = &data.url {
+            let now = chrono::Utc::now().to_rfc3339();
+            let id = format!(
+                "item-{}-{}",
+                chrono::Utc::now().timestamp_millis(),
+                &uuid::Uuid::new_v4().to_string()[..8]
+            );
+            
+            let item = MymindItem {
+                id: id.clone(),
+                item_type: ItemType::Url,
+                content: url.clone(),
+                title: data.page_title.clone(),
+                description: None,
+                summary: None,
+                image_url: None,
+                source_url: None,
+                tags: vec![],
+                embedding: None,
+                created_at: now.clone(),
+                updated_at: now.clone(),
+                image_external: false,
+                colors: vec![],
+            };
+            
+            // Encrypt and save
+            let json = serde_json::to_string(&item).map_err(|e| e.to_string())?;
+            let encrypted_data = crypto::encrypt(&json, &key).map_err(|e| e.to_string())?;
+            
+            let encrypted_item = EncryptedItem {
+                id,
+                encrypted_data,
+                created_at: now.clone(),
+                updated_at: now,
+            };
+            
+            state.db.save_item(&encrypted_item).map_err(|e| e.to_string())?;
+            
+            // Index in FTS
+            let fts_entry = FtsEntry {
+                item_id: item.id.clone(),
+                title: item.title.clone().unwrap_or_default(),
+                description: String::new(),
+                summary: String::new(),
+                tags: String::new(),
+            };
+            state.db.index_fts(&fts_entry).ok();
+            
+            saved_items.push(item);
+        }
+    }
+    
+    // Save selected text as a note with source_url
+    if has_text {
+        if let Some(text) = &data.selected_text {
+            let trimmed = text.trim();
+            if !trimmed.is_empty() {
+                let now = chrono::Utc::now().to_rfc3339();
+                let id = format!(
+                    "item-{}-{}",
+                    chrono::Utc::now().timestamp_millis(),
+                    &uuid::Uuid::new_v4().to_string()[..8]
+                );
+                
+                let item = MymindItem {
+                    id: id.clone(),
+                    item_type: ItemType::Note,
+                    content: trimmed.to_string(),
+                    title: None,
+                    description: None,
+                    summary: None,
+                    image_url: None,
+                    source_url: source_url.clone(),
+                    tags: vec![],
+                    embedding: None,
+                    created_at: now.clone(),
+                    updated_at: now.clone(),
+                    image_external: false,
+                    colors: vec![],
+                };
+                
+                // Encrypt and save
+                let json = serde_json::to_string(&item).map_err(|e| e.to_string())?;
+                let encrypted_data = crypto::encrypt(&json, &key).map_err(|e| e.to_string())?;
+                
+                let encrypted_item = EncryptedItem {
+                    id,
+                    encrypted_data,
+                    created_at: now.clone(),
+                    updated_at: now,
+                };
+                
+                state.db.save_item(&encrypted_item).map_err(|e| e.to_string())?;
+                
+                // Index in FTS
+                let fts_entry = FtsEntry {
+                    item_id: item.id.clone(),
+                    title: String::new(),
+                    description: trimmed.chars().take(500).collect(), // Use content as description for search
+                    summary: String::new(),
+                    tags: String::new(),
+                };
+                state.db.index_fts(&fts_entry).ok();
+                
+                saved_items.push(item);
+            }
+        }
+    }
+    
+    if saved_items.is_empty() {
+        Err("No items were saved".to_string())
+    } else {
+        Ok(saved_items)
+    }
 }
