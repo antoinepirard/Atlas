@@ -35,6 +35,59 @@ function detectType(content: string): ItemType {
   return 'note';
 }
 
+// Detect X/Twitter URL
+function isXPostUrl(url: string): boolean {
+  try {
+    const urlObj = new URL(url);
+    const hostname = urlObj.hostname.replace('www.', '');
+    if (hostname !== 'x.com' && hostname !== 'twitter.com') {
+      return false;
+    }
+    return /^\/[^/]+\/status\/\d+/.test(urlObj.pathname);
+  } catch {
+    return false;
+  }
+}
+
+// Fetch tweet content via oEmbed API
+async function fetchTweetContent(url: string): Promise<{ author: string; text: string } | null> {
+  try {
+    const oembedUrl = `https://publish.twitter.com/oembed?url=${encodeURIComponent(url)}&omit_script=true`;
+    const response = await fetch(oembedUrl);
+    if (!response.ok) return null;
+    
+    const data = await response.json();
+    
+    // Extract text from the HTML (it's in a blockquote)
+    // The HTML looks like: <blockquote>tweet text<br>— Author (@handle)</blockquote>
+    const html = data.html || '';
+    
+    // Use a simple regex to extract the text content before the author line
+    const textMatch = html.match(/<blockquote[^>]*><p[^>]*>([\s\S]*?)<\/p>/i);
+    let text = '';
+    if (textMatch) {
+      text = textMatch[1]
+        .replace(/<br\s*\/?>/gi, '\n')
+        .replace(/<a[^>]*>(.*?)<\/a>/gi, '$1')
+        .replace(/<[^>]+>/g, '')
+        .replace(/&amp;/g, '&')
+        .replace(/&lt;/g, '<')
+        .replace(/&gt;/g, '>')
+        .replace(/&quot;/g, '"')
+        .replace(/&#39;/g, "'")
+        .trim();
+    }
+    
+    return {
+      author: data.author_name || '',
+      text: text || data.author_name ? `Tweet by ${data.author_name}` : '',
+    };
+  } catch (error) {
+    console.warn('Failed to fetch tweet content:', error);
+    return null;
+  }
+}
+
 export function useMymind() {
   const [items, setItems] = useState<MymindItem[]>([]);
   const [isLoading, setIsLoading] = useState(true);
@@ -164,24 +217,39 @@ export function useMymind() {
       let title: string | undefined;
       let description: string | undefined;
       let imageUrl: string | undefined;
+      let tweetContent: string | undefined;
 
       if (itemType === 'url') {
+        // Check if it's an X/Twitter post
+        if (isXPostUrl(content)) {
+          // Fetch tweet content via oEmbed for better AI summarization
+          const tweetData = await fetchTweetContent(content);
+          if (tweetData) {
+            title = `Tweet by ${tweetData.author}`;
+            description = tweetData.text;
+            tweetContent = tweetData.text;
+          }
+        }
+        
+        // Also fetch standard metadata (for image, etc.)
         try {
           const metadata = await tauri.fetchUrlMetadata(content);
-          title = metadata.title || undefined;
-          description = metadata.description || undefined;
+          if (!title) title = metadata.title || undefined;
+          if (!description) description = metadata.description || undefined;
           imageUrl = metadata.image || undefined;
         } catch {
           // Fallback
         }
       }
 
-      // Process with AI
+      // Process with AI - for X posts, pass the actual tweet text
       let tags: string[] = [itemType];
       let summary = '';
       let embedding: number[] = [];
       try {
-        const aiResult = await tauri.processWithAI(content, itemType, title, description);
+        // For X posts, use the tweet content for AI processing
+        const contentForAI = tweetContent || content;
+        const aiResult = await tauri.processWithAI(contentForAI, itemType, title, description);
         tags = aiResult.tags;
         summary = aiResult.summary;
         embedding = aiResult.embedding;

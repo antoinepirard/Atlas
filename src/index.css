@@ -23,3 +23,51 @@ body {
   -webkit-user-select: none;
 }
 
+/* Apple-style auto-hiding scrollbar */
+html {
+  scrollbar-width: thin;
+  scrollbar-color: transparent transparent;
+}
+
+html.is-scrolling {
+  scrollbar-color: rgba(0, 0, 0, 0.3) transparent;
+}
+
+/* WebKit browsers (Chrome, Safari, Edge) */
+::-webkit-scrollbar {
+  width: 8px;
+  height: 8px;
+}
+
+::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+::-webkit-scrollbar-thumb {
+  background: rgba(0, 0, 0, 0);
+  border-radius: 10px;
+  border: 2px solid transparent;
+  background-clip: content-box;
+  transition: background 0.4s ease;
+}
+
+/* Show scrollbar when scrolling */
+html.is-scrolling ::-webkit-scrollbar-thumb,
+html.is-scrolling::-webkit-scrollbar-thumb {
+  background: rgba(0, 0, 0, 0.3);
+  border: 2px solid transparent;
+  background-clip: content-box;
+}
+
+html.is-scrolling ::-webkit-scrollbar-thumb:hover,
+html.is-scrolling::-webkit-scrollbar-thumb:hover {
+  background: rgba(0, 0, 0, 0.5);
+  border: 2px solid transparent;
+  background-clip: content-box;
+}
+
+/* Hide scrollbar corner */
+::-webkit-scrollbar-corner {
+  background: transparent;
+}
+

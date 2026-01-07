@@ -41,6 +41,19 @@ export function MymindApp() {
     setIsAddModalOpen(false);
   }, [addContent]);
 
+  // Navigate to previous/next item in preview modal
+  const handleNavigateItem = useCallback((direction: 'prev' | 'next') => {
+    if (!selectedItem) return;
+    const currentIndex = items.findIndex(item => item.id === selectedItem.id);
+    if (currentIndex === -1) return;
+    
+    const newIndex = direction === 'prev' 
+      ? (currentIndex - 1 + items.length) % items.length
+      : (currentIndex + 1) % items.length;
+    
+    setSelectedItem(items[newIndex]);
+  }, [selectedItem, items]);
+
   const handleUploadImage = useCallback(async (file: File) => {
     await uploadImage(file);
     setIsAddModalOpen(false);
@@ -76,6 +89,64 @@ export function MymindApp() {
       unlisten.then(fn => fn());
     };
   }, [addContent]);
+
+  // Auto-hiding scrollbar effect
+  useEffect(() => {
+    let scrollTimeout: ReturnType<typeof setTimeout>;
+    
+    const handleScroll = () => {
+      document.documentElement.classList.add('is-scrolling');
+      
+      clearTimeout(scrollTimeout);
+      scrollTimeout = setTimeout(() => {
+        document.documentElement.classList.remove('is-scrolling');
+      }, 1000); // Hide after 1 second of no scrolling
+    };
+
+    window.addEventListener('scroll', handleScroll, { passive: true });
+    return () => {
+      window.removeEventListener('scroll', handleScroll);
+      clearTimeout(scrollTimeout);
+    };
+  }, []);
+
+  // Global keyboard shortcuts
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      // Don't trigger shortcuts if typing in an input
+      const target = e.target as HTMLElement;
+      if (target.tagName === 'INPUT' || target.tagName === 'TEXTAREA' || target.isContentEditable) {
+        return;
+      }
+
+      // ⌘+N to open add content modal
+      if ((e.metaKey || e.ctrlKey) && e.key === 'n') {
+        e.preventDefault();
+        setIsAddModalOpen(true);
+        return;
+      }
+
+      // ⌘+1/2/3/4 to filter by type
+      if (e.metaKey || e.ctrlKey) {
+        if (e.key === '1') {
+          e.preventDefault();
+          handleFilterType(null);
+        } else if (e.key === '2') {
+          e.preventDefault();
+          handleFilterType('url');
+        } else if (e.key === '3') {
+          e.preventDefault();
+          handleFilterType('image');
+        } else if (e.key === '4') {
+          e.preventDefault();
+          handleFilterType('note');
+        }
+      }
+    };
+
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, [handleFilterType]);
 
   // Global paste handler
   useEffect(() => {
@@ -155,6 +226,7 @@ export function MymindApp() {
               whileHover={{ scale: 1.02 }}
               whileTap={{ scale: 0.98 }}
               onClick={() => setIsAddModalOpen(true)}
+              title="Add content (⌘N)"
               className="flex items-center gap-2 px-4 py-2 bg-stone-900 text-white rounded-full hover:bg-stone-800 transition-colors text-sm"
             >
               <PlusIcon className="w-4 h-4" />
@@ -206,7 +278,7 @@ export function MymindApp() {
                 Your mind is empty
               </h2>
               <p className="text-stone-400 max-w-md mb-8 text-sm">
-                Paste anything to add it. URLs, images, notes—just press ⌘V anywhere.
+                Paste anything to add it. URLs, images, notes—just press ⌘V anywhere, or ⌘N to add content.
               </p>
               <button
                 onClick={() => setIsAddModalOpen(true)}
@@ -265,6 +337,9 @@ export function MymindApp() {
         item={selectedItem}
         isOpen={selectedItem !== null}
         onClose={() => setSelectedItem(null)}
+        onNavigate={handleNavigateItem}
+        totalItems={items.length}
+        currentIndex={selectedItem ? items.findIndex(i => i.id === selectedItem.id) : -1}
       />
 
       <SettingsModal

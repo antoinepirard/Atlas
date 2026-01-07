@@ -1,9 +1,11 @@
-import { useMemo, useEffect } from "react";
+import { useMemo, useEffect, useState } from "react";
 import { motion, AnimatePresence } from "motion/react";
 import {
   XMarkIcon,
   ArrowTopRightOnSquareIcon,
   LinkIcon,
+  ChevronLeftIcon,
+  ChevronRightIcon,
 } from "@heroicons/react/24/outline";
 import type { MymindItem } from "../types";
 import { NoteContent } from "./CodeBlock";
@@ -36,6 +38,9 @@ interface PreviewModalProps {
   item: MymindItem | null;
   isOpen: boolean;
   onClose: () => void;
+  onNavigate?: (direction: "prev" | "next") => void;
+  totalItems?: number;
+  currentIndex?: number;
 }
 
 function getYouTubeVideoId(url: string): string | null {
@@ -109,7 +114,16 @@ function getDomain(url: string): string {
   }
 }
 
-export function PreviewModal({ item, isOpen, onClose }: PreviewModalProps) {
+export function PreviewModal({
+  item,
+  isOpen,
+  onClose,
+  onNavigate,
+  totalItems = 0,
+  currentIndex = -1,
+}: PreviewModalProps) {
+  const [isHovering, setIsHovering] = useState(false);
+
   const youtubeVideoId = useMemo(() => {
     if (!item || item.type !== "url") return null;
     return getYouTubeVideoId(item.content);
@@ -120,7 +134,7 @@ export function PreviewModal({ item, isOpen, onClose }: PreviewModalProps) {
     return getXPostInfo(item.content);
   }, [item]);
 
-  // Handle Escape key to close modal
+  // Handle keyboard navigation
   useEffect(() => {
     if (!isOpen) return;
 
@@ -128,10 +142,20 @@ export function PreviewModal({ item, isOpen, onClose }: PreviewModalProps) {
       if (e.key === "Escape") {
         onClose();
       }
+      // Arrow key navigation
+      if (onNavigate && totalItems > 1) {
+        if (e.key === "ArrowLeft") {
+          e.preventDefault();
+          onNavigate("prev");
+        } else if (e.key === "ArrowRight") {
+          e.preventDefault();
+          onNavigate("next");
+        }
+      }
     };
     window.addEventListener("keydown", handleKeyDown);
     return () => window.removeEventListener("keydown", handleKeyDown);
-  }, [isOpen, onClose]);
+  }, [isOpen, onClose, onNavigate, totalItems]);
 
   if (!item) return null;
 
@@ -157,7 +181,42 @@ export function PreviewModal({ item, isOpen, onClose }: PreviewModalProps) {
           >
             <div className="w-full max-w-[1600px] h-full mx-auto flex rounded-2xl overflow-hidden bg-stone-100 shadow-2xl">
               {/* Left: Content Preview */}
-              <div className="flex-1 bg-stone-900 flex items-center justify-center overflow-hidden relative">
+              <div
+                className="flex-1 bg-stone-900 flex items-center justify-center overflow-hidden relative"
+                onMouseEnter={() => setIsHovering(true)}
+                onMouseLeave={() => setIsHovering(false)}
+              >
+                {/* Navigation arrows */}
+                {onNavigate && totalItems > 1 && (
+                  <>
+                    <button
+                      onClick={() => onNavigate("prev")}
+                      className={`absolute left-4 top-1/2 -translate-y-1/2 p-3 rounded-full bg-white/10 hover:bg-white/20 text-white transition-all z-10 ${
+                        isHovering ? "opacity-100" : "opacity-0"
+                      }`}
+                      title="Previous (←)"
+                    >
+                      <ChevronLeftIcon className="w-6 h-6" />
+                    </button>
+                    <button
+                      onClick={() => onNavigate("next")}
+                      className={`absolute right-4 top-1/2 -translate-y-1/2 p-3 rounded-full bg-white/10 hover:bg-white/20 text-white transition-all z-10 ${
+                        isHovering ? "opacity-100" : "opacity-0"
+                      }`}
+                      title="Next (→)"
+                    >
+                      <ChevronRightIcon className="w-6 h-6" />
+                    </button>
+                    {/* Item counter */}
+                    <div
+                      className={`absolute bottom-4 left-1/2 -translate-x-1/2 px-3 py-1.5 rounded-full bg-white/10 text-white/80 text-sm font-medium z-10 transition-all ${
+                        isHovering ? "opacity-100" : "opacity-0"
+                      }`}
+                    >
+                      {currentIndex + 1} / {totalItems}
+                    </div>
+                  </>
+                )}
                 {item.type === "image" && (
                   <img
                     src={item.content}
