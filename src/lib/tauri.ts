@@ -8,6 +8,10 @@ import type {
   AIProcessResult,
   UrlMetadata,
   ItemType,
+  MigrationResult,
+  ItemsPage,
+  SearchResponse,
+  ReindexResult,
 } from '../types';
 
 // Vault commands
@@ -65,6 +69,10 @@ export async function getAllItems(): Promise<MymindItem[]> {
   return invoke('get_all_items');
 }
 
+export async function getItemsPage(page: number, limit?: number): Promise<ItemsPage> {
+  return invoke('get_items_page', { page, limit });
+}
+
 export async function addItem(input: AddItemInput): Promise<MymindItem> {
   return invoke('add_item', { input });
 }
@@ -79,6 +87,19 @@ export async function deleteItem(id: string): Promise<boolean> {
 
 export async function getItemCount(): Promise<number> {
   return invoke('get_item_count');
+}
+
+// Image commands (external storage)
+export async function getFullImage(id: string): Promise<string> {
+  return invoke('get_full_image', { id });
+}
+
+export async function migrateImageToExternal(id: string): Promise<string> {
+  return invoke('migrate_image_to_external', { id });
+}
+
+export async function migrateAllImages(): Promise<MigrationResult> {
+  return invoke('migrate_all_images');
 }
 
 // AI commands
@@ -106,6 +127,23 @@ export async function processWithAI(
 
 export async function getSearchEmbedding(query: string): Promise<number[]> {
   return invoke('get_search_embedding', { query });
+}
+
+// Server-side search commands
+export async function semanticSearch(queryEmbedding: number[], limit?: number): Promise<SearchResponse> {
+  return invoke('semantic_search', { queryEmbedding, limit });
+}
+
+export async function textSearch(query: string, limit?: number): Promise<MymindItem[]> {
+  return invoke('text_search', { query, limit });
+}
+
+export async function reindexAllEmbeddings(): Promise<ReindexResult> {
+  return invoke('reindex_all_embeddings');
+}
+
+export async function rebuildFtsIndex(): Promise<ReindexResult> {
+  return invoke('rebuild_fts_index');
 }
 
 export async function fetchUrlMetadata(url: string): Promise<UrlMetadata> {

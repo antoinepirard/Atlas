@@ -3,24 +3,7 @@ import * as tauri from '../lib/tauri';
 import type { MymindItem, SearchResult, ItemType } from '../types';
 
 const SEARCH_DEBOUNCE_MS = 500;
-
-// Cosine similarity for vector search
-function cosineSimilarity(a: number[], b: number[]): number {
-  if (a.length !== b.length || a.length === 0) return 0;
-  
-  let dot = 0;
-  let magA = 0;
-  let magB = 0;
-  
-  for (let i = 0; i < a.length; i++) {
-    dot += a[i] * b[i];
-    magA += a[i] * a[i];
-    magB += b[i] * b[i];
-  }
-  
-  const magnitude = Math.sqrt(magA) * Math.sqrt(magB);
-  return magnitude === 0 ? 0 : dot / magnitude;
-}
+const PAGE_SIZE = 50;
 
 // Detect content type
 function detectType(content: string): ItemType {
@@ -90,7 +73,11 @@ async function fetchTweetContent(url: string): Promise<{ author: string; text: s
 
 export function useMymind() {
   const [items, setItems] = useState<MymindItem[]>([]);
+  const [totalCount, setTotalCount] = useState(0);
+  const [hasMore, setHasMore] = useState(true);
+  const [currentPage, setCurrentPage] = useState(0);
   const [isLoading, setIsLoading] = useState(true);
+  const [isLoadingMore, setIsLoadingMore] = useState(false);
   const [isSearching, setIsSearching] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [searchQuery, setSearchQuery] = useState('');
@@ -98,14 +85,18 @@ export function useMymind() {
   const [semanticResults, setSemanticResults] = useState<SearchResult[] | null>(null);
   
   const searchTimeoutRef = useRef<number | null>(null);
+  const loadingRef = useRef(false);
 
-  // Load items on mount
+  // Load initial page on mount
   useEffect(() => {
-    const loadItems = async () => {
+    const loadInitialItems = async () => {
       setIsLoading(true);
       try {
-        const loadedItems = await tauri.getAllItems();
-        setItems(loadedItems);
+        const page = await tauri.getItemsPage(0, PAGE_SIZE);
+        setItems(page.items);
+        setTotalCount(page.total);
+        setHasMore(page.has_more);
+        setCurrentPage(0);
       } catch (err) {
         console.error('Failed to load items:', err);
         setError('Failed to load items');
@@ -114,10 +105,32 @@ export function useMymind() {
       }
     };
 
-    loadItems();
+    loadInitialItems();
   }, []);
 
-  // Semantic search with debounce
+  // Load more items (infinite scroll)
+  const loadMore = useCallback(async () => {
+    if (loadingRef.current || !hasMore || isSearching || searchQuery) return;
+    
+    loadingRef.current = true;
+    setIsLoadingMore(true);
+    
+    try {
+      const nextPage = currentPage + 1;
+      const page = await tauri.getItemsPage(nextPage, PAGE_SIZE);
+      
+      setItems(prev => [...prev, ...page.items]);
+      setHasMore(page.has_more);
+      setCurrentPage(nextPage);
+    } catch (err) {
+      console.error('Failed to load more items:', err);
+    } finally {
+      setIsLoadingMore(false);
+      loadingRef.current = false;
+    }
+  }, [currentPage, hasMore, isSearching, searchQuery]);
+
+  // Server-side semantic search with debounce
   useEffect(() => {
     if (searchTimeoutRef.current) {
       clearTimeout(searchTimeoutRef.current);
@@ -133,38 +146,43 @@ export function useMymind() {
     
     searchTimeoutRef.current = window.setTimeout(async () => {
       try {
+        // Get embedding for search query
         const queryEmbedding = await tauri.getSearchEmbedding(searchQuery);
         
         if (queryEmbedding.length === 0) {
-          setSemanticResults(null);
+          // Fall back to server-side text search
+          const textResults = await tauri.textSearch(searchQuery, 100);
+          setSemanticResults(textResults);
           setIsSearching(false);
           return;
         }
         
-        const itemsWithSimilarity: SearchResult[] = items
-          .filter(item => item.embedding && item.embedding.length > 0)
-          .map(item => ({
-            ...item,
-            similarity: cosineSimilarity(queryEmbedding, item.embedding!),
-          }))
-          .sort((a, b) => (b.similarity || 0) - (a.similarity || 0));
+        // Perform server-side semantic search
+        const searchResponse = await tauri.semanticSearch(queryEmbedding, 100);
         
-        const itemsWithoutEmbedding = items.filter(item => !item.embedding || item.embedding.length === 0);
-        const textMatchedItems = itemsWithoutEmbedding.filter(item => {
-          const searchableText = [
-            item.content,
-            item.title,
-            item.description,
-            item.summary,
-            ...item.tags,
-          ].filter(Boolean).join(' ').toLowerCase();
-          return searchableText.includes(searchQuery.toLowerCase());
-        });
+        // Convert search results to SearchResult format
+        const semanticItems: SearchResult[] = searchResponse.results.map(r => ({
+          ...r.item,
+          similarity: r.similarity,
+        }));
         
-        setSemanticResults([...itemsWithSimilarity, ...textMatchedItems]);
+        // Also do text search to catch items without embeddings
+        const textResults = await tauri.textSearch(searchQuery, 50);
+        
+        // Merge results, avoiding duplicates
+        const semanticIds = new Set(semanticItems.map(i => i.id));
+        const additionalTextResults = textResults.filter(i => !semanticIds.has(i.id));
+        
+        setSemanticResults([...semanticItems, ...additionalTextResults]);
       } catch (error) {
-        console.error('Semantic search failed:', error);
-        setSemanticResults(null);
+        console.error('Search failed:', error);
+        // Try falling back to text search
+        try {
+          const textResults = await tauri.textSearch(searchQuery, 100);
+          setSemanticResults(textResults);
+        } catch {
+          setSemanticResults(null);
+        }
       } finally {
         setIsSearching(false);
       }
@@ -175,7 +193,7 @@ export function useMymind() {
         clearTimeout(searchTimeoutRef.current);
       }
     };
-  }, [searchQuery, items]);
+  }, [searchQuery]);
 
   // Filter items
   const filteredItems = useMemo((): SearchResult[] => {
@@ -270,6 +288,7 @@ export function useMymind() {
       });
 
       setItems(prev => [newItem, ...prev]);
+      setTotalCount(prev => prev + 1);
       return newItem;
     } catch (err) {
       setError(err instanceof Error ? err.message : 'An error occurred');
@@ -315,6 +334,7 @@ export function useMymind() {
       });
 
       setItems(prev => [newItem, ...prev]);
+      setTotalCount(prev => prev + 1);
       return newItem;
     } catch (err) {
       setError(err instanceof Error ? err.message : 'An error occurred');
@@ -329,6 +349,7 @@ export function useMymind() {
     try {
       await tauri.deleteItem(itemId);
       setItems(prev => prev.filter(item => item.id !== itemId));
+      setTotalCount(prev => prev - 1);
       return true;
     } catch (err) {
       setError(err instanceof Error ? err.message : 'An error occurred');
@@ -346,8 +367,11 @@ export function useMymind() {
 
   const refresh = useCallback(async () => {
     try {
-      const loadedItems = await tauri.getAllItems();
-      setItems(loadedItems);
+      const page = await tauri.getItemsPage(0, PAGE_SIZE);
+      setItems(page.items);
+      setTotalCount(page.total);
+      setHasMore(page.has_more);
+      setCurrentPage(0);
     } catch (err) {
       console.error('Failed to refresh items:', err);
     }
@@ -355,7 +379,10 @@ export function useMymind() {
 
   return {
     items: filteredItems,
+    totalCount,
+    hasMore: hasMore && !searchQuery, // Disable infinite scroll during search
     isLoading,
+    isLoadingMore,
     isSearching,
     error,
     searchQuery,
@@ -365,7 +392,7 @@ export function useMymind() {
     deleteItem,
     handleSearch,
     handleFilterType,
+    loadMore,
     refresh,
   };
 }
-

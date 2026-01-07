@@ -3,6 +3,8 @@ pub mod capture;
 pub mod commands;
 pub mod crypto;
 pub mod db;
+pub mod images;
+pub mod search;
 
 use capture::QuickCaptureData;
 use commands::vault::VaultState;
@@ -186,10 +188,15 @@ pub fn run() {
             commands::unlock_with_biometrics,
             // Item commands
             commands::get_all_items,
+            commands::get_items_page,
             commands::add_item,
             commands::update_item,
             commands::delete_item,
             commands::get_item_count,
+            // Image commands (external storage)
+            commands::get_full_image,
+            commands::migrate_image_to_external,
+            commands::migrate_all_images,
             // AI commands
             commands::save_api_key,
             commands::has_api_key,
@@ -197,6 +204,11 @@ pub fn run() {
             commands::process_with_ai,
             commands::get_search_embedding,
             commands::fetch_url_metadata,
+            // Search commands (server-side)
+            search::semantic_search,
+            search::text_search,
+            search::reindex_all_embeddings,
+            search::rebuild_fts_index,
             // Quick capture commands
             trigger_quick_capture,
             check_accessibility_permission,

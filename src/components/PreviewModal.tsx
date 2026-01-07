@@ -10,6 +10,7 @@ import {
 import type { MymindItem } from "../types";
 import { NoteContent } from "./CodeBlock";
 import { detectCode } from "../utils/codeDetection";
+import * as tauri from "../lib/tauri";
 
 // Note preview component that handles both code and regular text
 function NotePreview({ content }: { content: string }) {
@@ -123,6 +124,8 @@ export function PreviewModal({
   currentIndex = -1,
 }: PreviewModalProps) {
   const [isHovering, setIsHovering] = useState(false);
+  const [fullImageUrl, setFullImageUrl] = useState<string | null>(null);
+  const [isLoadingFullImage, setIsLoadingFullImage] = useState(false);
 
   const youtubeVideoId = useMemo(() => {
     if (!item || item.type !== "url") return null;
@@ -133,6 +136,34 @@ export function PreviewModal({
     if (!item || item.type !== "url") return null;
     return getXPostInfo(item.content);
   }, [item]);
+
+  // Load full image on demand for external images
+  useEffect(() => {
+    if (!item || !isOpen) {
+      setFullImageUrl(null);
+      return;
+    }
+
+    // If it's an image with external storage, load the full image
+    if (item.type === "image" && item.image_external) {
+      setIsLoadingFullImage(true);
+      tauri
+        .getFullImage(item.id)
+        .then((url) => {
+          setFullImageUrl(url);
+        })
+        .catch((err) => {
+          console.error("Failed to load full image:", err);
+          // Fall back to thumbnail
+          setFullImageUrl(item.image_url || item.content);
+        })
+        .finally(() => {
+          setIsLoadingFullImage(false);
+        });
+    } else {
+      setFullImageUrl(null);
+    }
+  }, [item?.id, item?.type, item?.image_external, isOpen]);
 
   // Handle keyboard navigation
   useEffect(() => {
@@ -218,11 +249,18 @@ export function PreviewModal({
                   </>
                 )}
                 {item.type === "image" && (
-                  <img
-                    src={item.content}
-                    alt={item.title || "Image"}
-                    className="max-w-full max-h-full object-contain"
-                  />
+                  <>
+                    {isLoadingFullImage && (
+                      <div className="absolute inset-0 flex items-center justify-center bg-stone-900/50">
+                        <div className="w-8 h-8 border-2 border-white/30 border-t-white rounded-full animate-spin" />
+                      </div>
+                    )}
+                    <img
+                      src={fullImageUrl || item.image_url || item.content}
+                      alt={item.title || "Image"}
+                      className="max-w-full max-h-full object-contain"
+                    />
+                  </>
                 )}
 
                 {item.type === "url" && youtubeVideoId && (
@@ -391,7 +429,7 @@ export function PreviewModal({
                   )}
                   {item.type === "image" && (
                     <a
-                      href={item.content}
+                      href={fullImageUrl || item.image_url || item.content}
                       target="_blank"
                       rel="noopener noreferrer"
                       className="px-4 py-2 bg-stone-800 text-white rounded-lg text-sm font-medium hover:bg-stone-700 transition-colors flex items-center gap-2"

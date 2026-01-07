@@ -1,6 +1,6 @@
 [package]
 name = "atlas"
-version = "0.1.7"
+version = "0.1.8"
 description = "A private, encrypted mind vault"
 authors = ["Antoine Pirard"]
 edition = "2021"
@@ -55,6 +55,9 @@ futures = "0.3"
 # Utilities
 chrono = { version = "0.4", features = ["serde"] }
 uuid = { version = "1", features = ["v4"] }
+
+# Image processing (thumbnails)
+image = { version = "0.25", default-features = false, features = ["jpeg", "png", "gif", "webp"] }
 
 [target.'cfg(not(any(target_os = "android", target_os = "ios")))'.dependencies]
 tauri-plugin-shell = "2"

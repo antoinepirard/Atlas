@@ -25,7 +25,9 @@ export function MymindApp() {
   const [selectedItem, setSelectedItem] = useState<MymindItem | null>(null);
   const {
     items,
+    hasMore,
     isLoading,
+    isLoadingMore,
     isSearching,
     searchQuery,
     filterType,
@@ -34,6 +36,7 @@ export function MymindApp() {
     deleteItem,
     handleSearch,
     handleFilterType,
+    loadMore,
   } = useMymind();
 
   const handleAddContent = useCallback(async (content: string) => {
@@ -299,14 +302,20 @@ export function MymindApp() {
               </p>
             </motion.div>
           ) : (
-            <MasonryGrid columns={getColumns()} gap={20}>
+            <MasonryGrid 
+              columns={getColumns()} 
+              gap={20}
+              onLoadMore={loadMore}
+              hasMore={hasMore}
+              isLoadingMore={isLoadingMore}
+            >
               {items.map((item, index) => (
                 <motion.div
                   key={item.id}
                   initial={{ opacity: 0, y: 20 }}
                   animate={{ opacity: 1, y: 0 }}
                   exit={{ opacity: 0, scale: 0.9 }}
-                  transition={{ delay: index * 0.02, duration: 0.25 }}
+                  transition={{ delay: Math.min(index * 0.02, 0.5), duration: 0.25 }}
                 >
                   <ItemCard
                     item={item}

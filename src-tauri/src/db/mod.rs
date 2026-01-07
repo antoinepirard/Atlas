@@ -61,6 +61,25 @@ impl Database {
             );
             
             CREATE INDEX IF NOT EXISTS idx_items_created_at ON items(created_at);
+            
+            -- Separate table for embeddings (unencrypted for search)
+            -- Embeddings are stored as binary BLOBs for efficiency
+            CREATE TABLE IF NOT EXISTS embeddings (
+                item_id TEXT PRIMARY KEY REFERENCES items(id) ON DELETE CASCADE,
+                embedding BLOB NOT NULL
+            );
+            
+            -- Full-text search index for fast text searches
+            -- Stores unencrypted searchable text
+            CREATE VIRTUAL TABLE IF NOT EXISTS items_fts USING fts5(
+                item_id,
+                title,
+                description,
+                summary,
+                tags,
+                content='',
+                contentless_delete=1
+            );
             "
         )?;
         
@@ -165,6 +184,27 @@ impl Database {
         items.collect()
     }
     
+    /// Get paginated encrypted items
+    pub fn get_items_page(&self, offset: u32, limit: u32) -> SqliteResult<Vec<EncryptedItem>> {
+        let conn = self.conn.lock().unwrap();
+        let mut stmt = conn.prepare(
+            "SELECT id, encrypted_data, created_at, updated_at FROM items 
+             ORDER BY created_at DESC 
+             LIMIT ?1 OFFSET ?2"
+        )?;
+        
+        let items = stmt.query_map([limit, offset], |row| {
+            Ok(EncryptedItem {
+                id: row.get(0)?,
+                encrypted_data: row.get(1)?,
+                created_at: row.get(2)?,
+                updated_at: row.get(3)?,
+            })
+        })?;
+        
+        items.collect()
+    }
+    
     /// Get a single item by ID
     pub fn get_item(&self, id: &str) -> SqliteResult<Option<EncryptedItem>> {
         let conn = self.conn.lock().unwrap();
@@ -209,8 +249,134 @@ impl Database {
     pub fn reset_vault(&self) -> SqliteResult<()> {
         let conn = self.conn.lock().unwrap();
         conn.execute_batch(
-            "DELETE FROM items; DELETE FROM vault_config;"
+            "DELETE FROM items; DELETE FROM vault_config; DELETE FROM embeddings;"
         )?;
+        Ok(())
+    }
+    
+    /// Save embedding for an item
+    pub fn save_embedding(&self, item_id: &str, embedding: &[f32]) -> SqliteResult<()> {
+        let conn = self.conn.lock().unwrap();
+        
+        // Convert f32 array to bytes
+        let bytes: Vec<u8> = embedding
+            .iter()
+            .flat_map(|f| f.to_le_bytes())
+            .collect();
+        
+        conn.execute(
+            "INSERT OR REPLACE INTO embeddings (item_id, embedding) VALUES (?1, ?2)",
+            rusqlite::params![item_id, bytes],
+        )?;
+        
+        Ok(())
+    }
+    
+    /// Get embedding for an item
+    pub fn get_embedding(&self, item_id: &str) -> SqliteResult<Option<Vec<f32>>> {
+        let conn = self.conn.lock().unwrap();
+        let mut stmt = conn.prepare("SELECT embedding FROM embeddings WHERE item_id = ?1")?;
+        
+        let result: Option<Vec<u8>> = stmt.query_row([item_id], |row| row.get(0)).ok();
+        
+        match result {
+            Some(bytes) => {
+                let embedding = bytes_to_f32_vec(&bytes);
+                Ok(Some(embedding))
+            }
+            None => Ok(None),
+        }
+    }
+    
+    /// Get all embeddings with their item IDs
+    pub fn get_all_embeddings(&self) -> SqliteResult<Vec<(String, Vec<f32>)>> {
+        let conn = self.conn.lock().unwrap();
+        let mut stmt = conn.prepare("SELECT item_id, embedding FROM embeddings")?;
+        
+        let results = stmt.query_map([], |row| {
+            let item_id: String = row.get(0)?;
+            let bytes: Vec<u8> = row.get(1)?;
+            Ok((item_id, bytes_to_f32_vec(&bytes)))
+        })?;
+        
+        results.collect()
+    }
+    
+    /// Delete embedding for an item
+    pub fn delete_embedding(&self, item_id: &str) -> SqliteResult<()> {
+        let conn = self.conn.lock().unwrap();
+        conn.execute("DELETE FROM embeddings WHERE item_id = ?1", [item_id])?;
+        Ok(())
+    }
+}
+
+/// Convert bytes to f32 vector
+fn bytes_to_f32_vec(bytes: &[u8]) -> Vec<f32> {
+    bytes
+        .chunks_exact(4)
+        .map(|chunk| f32::from_le_bytes([chunk[0], chunk[1], chunk[2], chunk[3]]))
+        .collect()
+}
+
+/// Item metadata for FTS indexing (unencrypted)
+pub struct FtsEntry {
+    pub item_id: String,
+    pub title: String,
+    pub description: String,
+    pub summary: String,
+    pub tags: String, // Space-separated tags
+}
+
+impl Database {
+    /// Index an item in the FTS table
+    pub fn index_fts(&self, entry: &FtsEntry) -> SqliteResult<()> {
+        let conn = self.conn.lock().unwrap();
+        
+        // First remove any existing entry
+        conn.execute(
+            "DELETE FROM items_fts WHERE item_id = ?1",
+            [&entry.item_id],
+        )?;
+        
+        // Insert the new entry
+        conn.execute(
+            "INSERT INTO items_fts (item_id, title, description, summary, tags) 
+             VALUES (?1, ?2, ?3, ?4, ?5)",
+            rusqlite::params![
+                entry.item_id,
+                entry.title,
+                entry.description,
+                entry.summary,
+                entry.tags
+            ],
+        )?;
+        
+        Ok(())
+    }
+    
+    /// Search FTS index and return matching item IDs with rank
+    pub fn search_fts(&self, query: &str, limit: u32) -> SqliteResult<Vec<(String, f64)>> {
+        let conn = self.conn.lock().unwrap();
+        
+        // Use FTS5's built-in ranking
+        let mut stmt = conn.prepare(
+            "SELECT item_id, rank FROM items_fts 
+             WHERE items_fts MATCH ?1
+             ORDER BY rank
+             LIMIT ?2"
+        )?;
+        
+        let results = stmt.query_map(rusqlite::params![query, limit], |row| {
+            Ok((row.get(0)?, row.get(1)?))
+        })?;
+        
+        results.collect()
+    }
+    
+    /// Remove an item from the FTS index
+    pub fn delete_fts(&self, item_id: &str) -> SqliteResult<()> {
+        let conn = self.conn.lock().unwrap();
+        conn.execute("DELETE FROM items_fts WHERE item_id = ?1", [item_id])?;
         Ok(())
     }
 }

@@ -13,6 +13,36 @@ export interface MymindItem {
   embedding: number[] | null;
   created_at: string;
   updated_at: string;
+  /** Flag indicating image is stored externally (not in DB) */
+  image_external?: boolean;
+}
+
+export interface MigrationResult {
+  migrated: number;
+  failed: number;
+  skipped: number;
+}
+
+export interface ItemsPage {
+  items: MymindItem[];
+  total: number;
+  has_more: boolean;
+}
+
+export interface SearchResultItem {
+  item: MymindItem;
+  similarity: number;
+}
+
+export interface SearchResponse {
+  results: SearchResultItem[];
+  total_searched: number;
+}
+
+export interface ReindexResult {
+  indexed: number;
+  skipped: number;
+  failed: number;
 }
 
 export interface AddItemInput {
