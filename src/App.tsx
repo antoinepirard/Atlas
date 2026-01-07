@@ -1,7 +1,7 @@
 import { VaultProvider, useVault } from './components/VaultProvider';
 import { VaultSetup } from './components/VaultSetup';
 import { VaultUnlock } from './components/VaultUnlock';
-import { MymindApp } from './components/MymindApp';
+import { AtlasApp } from './components/AtlasApp';
 
 function VaultContent() {
   const { status, isLoading } = useVault();
@@ -25,7 +25,7 @@ function VaultContent() {
     return <VaultUnlock />;
   }
 
-  return <MymindApp />;
+  return <AtlasApp />;
 }
 
 export default function App() {

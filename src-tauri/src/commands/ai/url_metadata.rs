@@ -19,7 +19,7 @@ pub async fn fetch_url_metadata(url: String) -> Result<UrlMetadata, String> {
     // Fetch the page for description and other metadata
     let response = client
         .get(&url)
-        .header("User-Agent", "Mozilla/5.0 (compatible; MymindBot/1.0)")
+        .header("User-Agent", "Mozilla/5.0 (compatible; AtlasBot/1.0)")
         .send()
         .await
         .map_err(|e| format!("Failed to fetch URL: {}", e))?;

@@ -38,7 +38,7 @@ Atlas/
 │   │   ├── VaultProvider.tsx # Vault state context
 │   │   ├── VaultSetup.tsx    # First-time setup UI
 │   │   ├── VaultUnlock.tsx   # Password entry UI
-│   │   ├── MymindApp.tsx     # Main app after unlock
+│   │   ├── AtlasApp.tsx      # Main app after unlock
 │   │   ├── MasonryGrid.tsx   # Item grid layout
 │   │   ├── ItemCard.tsx      # Individual item display
 │   │   ├── SearchBar.tsx     # Search with semantic support
@@ -47,7 +47,7 @@ Atlas/
 │   │   ├── SettingsModal.tsx
 │   │   └── TypeFilter.tsx
 │   ├── hooks/
-│   │   └── useMymind.ts      # Item management hook
+│   │   └── useAtlas.ts       # Item management hook
 │   ├── lib/
 │   │   └── tauri.ts          # Tauri command wrappers
 │   └── types/
@@ -137,7 +137,7 @@ The workflow builds a macOS DMG and publishes it to GitHub Releases automaticall
 ┌─────────────────────────────────────────────────────────────┐
 │                        App.tsx                              │
 │  ┌─────────────┐   ┌─────────────┐   ┌─────────────────┐   │
-│  │ VaultSetup  │ → │ VaultUnlock │ → │    MymindApp    │   │
+│  │ VaultSetup  │ → │ VaultUnlock │ → │    AtlasApp     │   │
 │  │ (no vault)  │   │  (locked)   │   │   (unlocked)    │   │
 │  └─────────────┘   └─────────────┘   └─────────────────┘   │
 └─────────────────────────────────────────────────────────────┘
@@ -210,7 +210,7 @@ Rust Backend
 ```typescript
 type ItemType = "url" | "image" | "note";
 
-interface MymindItem {
+interface Item {
   id: string;
   type: ItemType;
   content: string;

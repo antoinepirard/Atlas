@@ -1,12 +1,12 @@
 import { useState, useCallback } from "react";
 import * as tauri from "../lib/tauri";
-import type { MymindItem } from "../types";
+import type { Item } from "../types";
 import { detectType, isGenericTitle } from "../utils/contentUtils";
 import { isXPostUrl, fetchTweetContent } from "../utils/twitterUtils";
 
 export interface ItemOperationsCallbacks {
-  onItemAdded: (item: MymindItem) => void;
-  onItemUpdated: (item: MymindItem) => void;
+  onItemAdded: (item: Item) => void;
+  onItemUpdated: (item: Item) => void;
   onItemDeleted: (id: string) => void;
   onItemsDeleted: (ids: string[]) => void;
   onCountChange: (delta: number) => void;
@@ -15,11 +15,11 @@ export interface ItemOperationsCallbacks {
 export interface UseItemOperationsReturn {
   isLoading: boolean;
   error: string | null;
-  addContent: (content: string, sourceUrl?: string) => Promise<MymindItem | null>;
-  uploadImage: (file: File) => Promise<MymindItem | null>;
+  addContent: (content: string, sourceUrl?: string) => Promise<Item | null>;
+  uploadImage: (file: File) => Promise<Item | null>;
   deleteItem: (itemId: string) => Promise<boolean>;
   deleteItems: (itemIds: string[]) => Promise<boolean>;
-  updateItem: (updatedItem: MymindItem) => Promise<MymindItem | null>;
+  updateItem: (updatedItem: Item) => Promise<Item | null>;
 }
 
 export function useItemOperations(
@@ -30,7 +30,7 @@ export function useItemOperations(
 
   // Add content
   const addContent = useCallback(
-    async (content: string, sourceUrl?: string): Promise<MymindItem | null> => {
+    async (content: string, sourceUrl?: string): Promise<Item | null> => {
       setIsLoading(true);
       setError(null);
 
@@ -141,7 +141,7 @@ export function useItemOperations(
 
   // Upload image
   const uploadImage = useCallback(
-    async (file: File): Promise<MymindItem | null> => {
+    async (file: File): Promise<Item | null> => {
       setIsLoading(true);
       setError(null);
 
@@ -232,7 +232,7 @@ export function useItemOperations(
 
   // Update item (for editing notes)
   const updateItem = useCallback(
-    async (updatedItem: MymindItem): Promise<MymindItem | null> => {
+    async (updatedItem: Item): Promise<Item | null> => {
       try {
         const result = await tauri.updateItem(updatedItem);
         callbacks.onItemUpdated(result);

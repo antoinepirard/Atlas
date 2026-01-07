@@ -1,20 +1,20 @@
 import { useCallback, useMemo } from "react";
-import type { MymindItem } from "../types";
+import type { Item } from "../types";
 import { useItemPagination } from "./useItemPagination";
 import { useItemSearch } from "./useItemSearch";
 import { useItemOperations } from "./useItemOperations";
 
-export function useMymind() {
+export function useAtlas() {
   const pagination = useItemPagination();
   const search = useItemSearch(pagination.items);
 
   // Create stable callbacks for operations
   const operationsCallbacks = useMemo(
     () => ({
-      onItemAdded: (item: MymindItem) => {
+      onItemAdded: (item: Item) => {
         pagination.setItems((prev) => [item, ...prev]);
       },
-      onItemUpdated: (item: MymindItem) => {
+      onItemUpdated: (item: Item) => {
         pagination.setItems((prev) =>
           prev.map((i) => (i.id === item.id ? item : i))
         );

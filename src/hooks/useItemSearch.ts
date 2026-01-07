@@ -1,6 +1,6 @@
 import { useState, useCallback, useEffect, useMemo, useRef } from "react";
 import * as tauri from "../lib/tauri";
-import type { MymindItem, SearchResult, ItemType, ParsedQuery } from "../types";
+import type { Item, SearchResult, ItemType, ParsedQuery } from "../types";
 import { itemMatchesFilters } from "../lib/queryParser";
 
 const SEARCH_DEBOUNCE_MS = 500;
@@ -15,7 +15,7 @@ export interface UseItemSearchReturn {
   handleFilterType: (type: ItemType | null) => void;
 }
 
-export function useItemSearch(items: MymindItem[]): UseItemSearchReturn {
+export function useItemSearch(items: Item[]): UseItemSearchReturn {
   const [searchQuery, setSearchQuery] = useState("");
   const [parsedQuery, setParsedQuery] = useState<ParsedQuery | null>(null);
   const [filterType, setFilterType] = useState<ItemType | null>(null);

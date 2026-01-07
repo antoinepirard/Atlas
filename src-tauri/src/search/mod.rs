@@ -1,4 +1,4 @@
-use crate::commands::items::MymindItem;
+use crate::commands::items::Item;
 use crate::commands::vault::VaultState;
 use crate::crypto;
 use serde::Serialize;
@@ -7,7 +7,7 @@ use tauri::State;
 /// Result of semantic search
 #[derive(Debug, Clone, Serialize)]
 pub struct SearchResult {
-    pub item: MymindItem,
+    pub item: Item,
     pub similarity: f32,
 }
 
@@ -81,7 +81,7 @@ pub fn semantic_search(
     for (item_id, similarity) in top_results {
         if let Ok(Some(encrypted)) = state.db.get_item(&item_id) {
             if let Ok(json) = crypto::decrypt(&encrypted.encrypted_data, &key) {
-                if let Ok(mut item) = serde_json::from_str::<MymindItem>(&json) {
+                if let Ok(mut item) = serde_json::from_str::<Item>(&json) {
                     // Don't send embedding back to frontend
                     item.embedding = None;
                     results.push(SearchResult { item, similarity });
@@ -121,7 +121,7 @@ pub fn text_search(
     query: String,
     limit: Option<usize>,
     state: State<VaultState>,
-) -> Result<Vec<MymindItem>, String> {
+) -> Result<Vec<Item>, String> {
     let key = state.get_key().ok_or("Vault is locked")?;
     let limit = limit.unwrap_or(50) as u32;
 
@@ -149,7 +149,7 @@ pub fn text_search(
             for (item_id, _rank) in results {
                 if let Ok(Some(encrypted)) = state.db.get_item(&item_id) {
                     if let Ok(json) = crypto::decrypt(&encrypted.encrypted_data, &key) {
-                        if let Ok(mut item) = serde_json::from_str::<MymindItem>(&json) {
+                        if let Ok(mut item) = serde_json::from_str::<Item>(&json) {
                             item.embedding = None;
                             items.push(item);
                         }
@@ -165,7 +165,7 @@ pub fn text_search(
             let mut matches = Vec::new();
             for encrypted in encrypted_items {
                 if let Ok(json) = crypto::decrypt(&encrypted.encrypted_data, &key) {
-                    if let Ok(mut item) = serde_json::from_str::<MymindItem>(&json) {
+                    if let Ok(mut item) = serde_json::from_str::<Item>(&json) {
                         let searchable = [
                             item.title.as_deref().unwrap_or(""),
                             item.description.as_deref().unwrap_or(""),
@@ -226,7 +226,7 @@ pub fn reindex_all_embeddings(state: State<VaultState>) -> Result<ReindexResult,
     for encrypted in encrypted_items {
         match crypto::decrypt(&encrypted.encrypted_data, &key) {
             Ok(json) => {
-                if let Ok(item) = serde_json::from_str::<MymindItem>(&json) {
+                if let Ok(item) = serde_json::from_str::<Item>(&json) {
                     if let Some(ref embedding) = item.embedding {
                         if !embedding.is_empty() {
                             match state.db.save_embedding(&item.id, embedding) {
@@ -276,7 +276,7 @@ pub fn rebuild_fts_index(state: State<VaultState>) -> Result<ReindexResult, Stri
     for encrypted in encrypted_items {
         match crypto::decrypt(&encrypted.encrypted_data, &key) {
             Ok(json) => {
-                if let Ok(item) = serde_json::from_str::<MymindItem>(&json) {
+                if let Ok(item) = serde_json::from_str::<Item>(&json) {
                     let entry = FtsEntry {
                         item_id: item.id.clone(),
                         title: item.title.unwrap_or_default(),
@@ -305,7 +305,7 @@ pub fn rebuild_fts_index(state: State<VaultState>) -> Result<ReindexResult, Stri
 }
 
 /// Index a single item in FTS (called after add/update)
-pub fn index_item_fts(item: &MymindItem, state: &State<VaultState>) -> Result<(), String> {
+pub fn index_item_fts(item: &Item, state: &State<VaultState>) -> Result<(), String> {
     use crate::db::FtsEntry;
     
     let entry = FtsEntry {
@@ -339,7 +339,7 @@ pub fn get_all_tags(state: State<VaultState>) -> Result<Vec<String>, String> {
     
     for encrypted in encrypted_items {
         if let Ok(json) = crypto::decrypt(&encrypted.encrypted_data, &key) {
-            if let Ok(item) = serde_json::from_str::<MymindItem>(&json) {
+            if let Ok(item) = serde_json::from_str::<Item>(&json) {
                 for tag in item.tags {
                     tags_set.insert(tag);
                 }

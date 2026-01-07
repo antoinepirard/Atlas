@@ -1,11 +1,11 @@
 import { useState, useCallback, useEffect, useRef } from "react";
 import * as tauri from "../lib/tauri";
-import type { MymindItem } from "../types";
+import type { Item } from "../types";
 
 const PAGE_SIZE = 50;
 
 export interface UseItemPaginationReturn {
-  items: MymindItem[];
+  items: Item[];
   totalCount: number;
   hasMore: boolean;
   currentPage: number;
@@ -13,12 +13,12 @@ export interface UseItemPaginationReturn {
   isLoadingMore: boolean;
   loadMore: () => Promise<void>;
   refresh: () => Promise<void>;
-  setItems: React.Dispatch<React.SetStateAction<MymindItem[]>>;
+  setItems: React.Dispatch<React.SetStateAction<Item[]>>;
   setTotalCount: React.Dispatch<React.SetStateAction<number>>;
 }
 
 export function useItemPagination(): UseItemPaginationReturn {
-  const [items, setItems] = useState<MymindItem[]>([]);
+  const [items, setItems] = useState<Item[]>([]);
   const [totalCount, setTotalCount] = useState(0);
   const [hasMore, setHasMore] = useState(true);
   const [currentPage, setCurrentPage] = useState(0);

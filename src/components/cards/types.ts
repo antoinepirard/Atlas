@@ -1,7 +1,7 @@
-import type { MymindItem } from "../../types";
+import type { Item } from "../../types";
 
 export interface BaseCardProps {
-  item: MymindItem;
+  item: Item;
   onDelete: () => void;
   onClick?: () => void;
   isSelected?: boolean;

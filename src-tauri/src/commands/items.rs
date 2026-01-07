@@ -17,7 +17,7 @@ pub enum ItemType {
 
 /// Decrypted item structure (matches frontend types)
 #[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct MymindItem {
+pub struct Item {
     pub id: String,
     #[serde(rename = "type")]
     pub item_type: ItemType,
@@ -62,7 +62,7 @@ fn is_data_url(s: &str) -> bool {
 /// Get all items (decrypted)
 /// For images with external storage, returns thumbnails instead of full images
 #[tauri::command]
-pub fn get_all_items(state: State<VaultState>) -> Result<Vec<MymindItem>, String> {
+pub fn get_all_items(state: State<VaultState>) -> Result<Vec<Item>, String> {
     let key = state.get_key().ok_or("Vault is locked")?;
 
     let encrypted_items = state.db.get_all_items().map_err(|e| e.to_string())?;
@@ -71,7 +71,7 @@ pub fn get_all_items(state: State<VaultState>) -> Result<Vec<MymindItem>, String
     for encrypted in encrypted_items {
         match crypto::decrypt(&encrypted.encrypted_data, &key) {
             Ok(json) => {
-                if let Ok(mut item) = serde_json::from_str::<MymindItem>(&json) {
+                if let Ok(mut item) = serde_json::from_str::<Item>(&json) {
                     // For image items with external storage, load thumbnail
                     if item.item_type == ItemType::Image && item.image_external {
                         // Load thumbnail from external storage
@@ -105,7 +105,7 @@ pub fn get_all_items(state: State<VaultState>) -> Result<Vec<MymindItem>, String
 /// Add a new item
 /// For image items, stores the image externally and returns thumbnail
 #[tauri::command]
-pub fn add_item(input: AddItemInput, state: State<VaultState>) -> Result<MymindItem, String> {
+pub fn add_item(input: AddItemInput, state: State<VaultState>) -> Result<Item, String> {
     let key = state.get_key().ok_or("Vault is locked")?;
 
     let now = chrono::Utc::now().to_rfc3339();
@@ -115,7 +115,7 @@ pub fn add_item(input: AddItemInput, state: State<VaultState>) -> Result<MymindI
         &uuid::Uuid::new_v4().to_string()[..8]
     );
 
-    let mut item = MymindItem {
+    let mut item = Item {
         id: id.clone(),
         item_type: input.item_type.clone(),
         content: input.content.clone(),
@@ -186,7 +186,7 @@ pub fn add_item(input: AddItemInput, state: State<VaultState>) -> Result<MymindI
 
 /// Update an existing item
 #[tauri::command]
-pub fn update_item(item: MymindItem, state: State<VaultState>) -> Result<MymindItem, String> {
+pub fn update_item(item: Item, state: State<VaultState>) -> Result<Item, String> {
     let key = state.get_key().ok_or("Vault is locked")?;
 
     let now = chrono::Utc::now().to_rfc3339();
@@ -260,7 +260,7 @@ pub fn get_full_image(id: String, state: State<VaultState>) -> Result<String, St
     let json = crypto::decrypt(&encrypted_item.encrypted_data, &key)
         .map_err(|e| format!("Failed to decrypt: {}", e))?;
 
-    let item: MymindItem =
+    let item: Item =
         serde_json::from_str(&json).map_err(|e| format!("Failed to parse: {}", e))?;
 
     // Return content (which should be the data URL for legacy items)
@@ -287,7 +287,7 @@ pub fn migrate_image_to_external(id: String, state: State<VaultState>) -> Result
     let json = crypto::decrypt(&encrypted_item.encrypted_data, &key)
         .map_err(|e| format!("Failed to decrypt: {}", e))?;
 
-    let mut item: MymindItem =
+    let mut item: Item =
         serde_json::from_str(&json).map_err(|e| format!("Failed to parse: {}", e))?;
 
     if item.item_type != ItemType::Image {
@@ -341,7 +341,7 @@ pub fn migrate_all_images(state: State<VaultState>) -> Result<MigrationResult, S
     for encrypted in encrypted_items {
         match crypto::decrypt(&encrypted.encrypted_data, &key) {
             Ok(json) => {
-                if let Ok(mut item) = serde_json::from_str::<MymindItem>(&json) {
+                if let Ok(mut item) = serde_json::from_str::<Item>(&json) {
                     // Only migrate image items that aren't already external
                     if item.item_type == ItemType::Image && !item.image_external {
                         // Check if content is a data URL
@@ -410,7 +410,7 @@ pub struct MigrationResult {
 /// Response for paginated items
 #[derive(Debug, Serialize)]
 pub struct ItemsPage {
-    pub items: Vec<MymindItem>,
+    pub items: Vec<Item>,
     pub total: i64,
     pub has_more: bool,
 }
@@ -440,7 +440,7 @@ pub fn get_items_page(
     for encrypted in encrypted_items {
         match crypto::decrypt(&encrypted.encrypted_data, &key) {
             Ok(json) => {
-                if let Ok(mut item) = serde_json::from_str::<MymindItem>(&json) {
+                if let Ok(mut item) = serde_json::from_str::<Item>(&json) {
                     // For image items with external storage, load thumbnail
                     if item.item_type == ItemType::Image && item.image_external {
                         match images::load_thumbnail(&item.id, &key) {
@@ -478,7 +478,7 @@ pub fn get_items_page(
 pub fn add_item_from_capture(
     data: QuickCaptureData,
     state: State<VaultState>,
-) -> Result<Vec<MymindItem>, String> {
+) -> Result<Vec<Item>, String> {
     let key = state.get_key().ok_or("Vault is locked")?;
     
     let has_url = data.url.as_ref().map(|u| !u.is_empty()).unwrap_or(false);
@@ -501,7 +501,7 @@ pub fn add_item_from_capture(
                 &uuid::Uuid::new_v4().to_string()[..8]
             );
             
-            let item = MymindItem {
+            let item = Item {
                 id: id.clone(),
                 item_type: ItemType::Url,
                 content: url.clone(),
@@ -557,7 +557,7 @@ pub fn add_item_from_capture(
                     &uuid::Uuid::new_v4().to_string()[..8]
                 );
                 
-                let item = MymindItem {
+                let item = Item {
                     id: id.clone(),
                     item_type: ItemType::Note,
                     content: trimmed.to_string(),

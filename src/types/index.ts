@@ -1,6 +1,6 @@
 export type ItemType = 'url' | 'image' | 'note';
 
-export interface MymindItem {
+export interface Item {
   id: string;
   type: ItemType;
   content: string;
@@ -26,13 +26,13 @@ export interface MigrationResult {
 }
 
 export interface ItemsPage {
-  items: MymindItem[];
+  items: Item[];
   total: number;
   has_more: boolean;
 }
 
 export interface SearchResultItem {
-  item: MymindItem;
+  item: Item;
   similarity: number;
 }
 
@@ -59,7 +59,7 @@ export interface AddItemInput {
   embedding?: number[];
 }
 
-export interface SearchResult extends MymindItem {
+export interface SearchResult extends Item {
   similarity?: number;
 }
 

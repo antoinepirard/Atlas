@@ -18,17 +18,17 @@ import { UpdateToast } from "./UpdateToast";
 import { SelectionActionBar } from "./SelectionActionBar";
 import type { QuickCaptureData } from "./QuickCaptureModal";
 import { useVault } from "./VaultProvider";
-import { useMymind } from "../hooks/useMymind";
+import { useAtlas } from "../hooks/useAtlas";
 import { toggleMaximize } from "../lib/tauri";
-import type { MymindItem } from "../types";
+import type { Item } from "../types";
 import { convertClipboardHtml } from "../utils/htmlToText";
 
-export function MymindApp() {
+export function AtlasApp() {
   const { lock, status } = useVault();
   const [isAddModalOpen, setIsAddModalOpen] = useState(false);
   const [isSettingsOpen, setIsSettingsOpen] = useState(false);
   const [isPasting, setIsPasting] = useState(false);
-  const [selectedItem, setSelectedItem] = useState<MymindItem | null>(null);
+  const [selectedItem, setSelectedItem] = useState<Item | null>(null);
 
   // Multi-select state
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
@@ -52,7 +52,7 @@ export function MymindApp() {
     handleSearch,
     handleFilterType,
     loadMore,
-  } = useMymind();
+  } = useAtlas();
 
   // Multi-select handlers
   const handleSelect = useCallback((id: string) => {
@@ -575,3 +575,4 @@ export function MymindApp() {
     </div>
   );
 }
+

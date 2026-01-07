@@ -1,9 +1,9 @@
 import { useState, useCallback } from "react";
 import { showItemContextMenu } from "../../lib/tauri";
-import type { MymindItem } from "../../types";
+import type { Item } from "../../types";
 
 interface UseCardStateOptions {
-  item: MymindItem;
+  item: Item;
   onDelete: () => void;
   onClick?: () => void;
   isMultiSelectMode?: boolean;

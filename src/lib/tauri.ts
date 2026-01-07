@@ -2,7 +2,7 @@ import { invoke } from "@tauri-apps/api/core";
 import { open } from "@tauri-apps/plugin-dialog";
 import { getCurrentWindow } from "@tauri-apps/api/window";
 import type {
-  MymindItem,
+  Item,
   AddItemInput,
   VaultStatus,
   AIProcessResult,
@@ -65,7 +65,7 @@ export async function unlockWithBiometrics(): Promise<boolean> {
 }
 
 // Item commands
-export async function getAllItems(): Promise<MymindItem[]> {
+export async function getAllItems(): Promise<Item[]> {
   return invoke("get_all_items");
 }
 
@@ -76,11 +76,11 @@ export async function getItemsPage(
   return invoke("get_items_page", { page, limit });
 }
 
-export async function addItem(input: AddItemInput): Promise<MymindItem> {
+export async function addItem(input: AddItemInput): Promise<Item> {
   return invoke("add_item", { input });
 }
 
-export async function updateItem(item: MymindItem): Promise<MymindItem> {
+export async function updateItem(item: Item): Promise<Item> {
   return invoke("update_item", { item });
 }
 
@@ -157,7 +157,7 @@ export async function semanticSearch(
 export async function textSearch(
   query: string,
   limit?: number
-): Promise<MymindItem[]> {
+): Promise<Item[]> {
   return invoke("text_search", { query, limit });
 }
 

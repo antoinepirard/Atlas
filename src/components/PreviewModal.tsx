@@ -7,7 +7,7 @@ import {
   ChevronLeftIcon,
   ChevronRightIcon,
 } from "@heroicons/react/24/outline";
-import type { MymindItem } from "../types";
+import type { Item } from "../types";
 import * as tauri from "../lib/tauri";
 import {
   getYouTubeVideoId,
@@ -18,13 +18,13 @@ import {
 import { SimpleNoteEditor } from "./SimpleNoteEditor";
 
 interface PreviewModalProps {
-  item: MymindItem | null;
+  item: Item | null;
   isOpen: boolean;
   onClose: () => void;
   onNavigate?: (direction: "prev" | "next") => void;
   totalItems?: number;
   currentIndex?: number;
-  onUpdateItem?: (item: MymindItem) => Promise<MymindItem | null>;
+  onUpdateItem?: (item: Item) => Promise<Item | null>;
 }
 
 export function PreviewModal({

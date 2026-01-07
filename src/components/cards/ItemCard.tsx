@@ -1,5 +1,5 @@
 import { useMemo } from "react";
-import type { MymindItem } from "../../types";
+import type { Item } from "../../types";
 import { getXPostInfo } from "./utils";
 import { XPostCard } from "./XPostCard";
 import { UrlCard } from "./UrlCard";
@@ -7,7 +7,7 @@ import { ImageCard } from "./ImageCard";
 import { NoteCard } from "./NoteCard";
 
 export interface ItemCardProps {
-  item: MymindItem;
+  item: Item;
   onDelete: () => void;
   onClick?: () => void;
   isSelected?: boolean;

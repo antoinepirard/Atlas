@@ -85,7 +85,7 @@ Set your API key through the app settings, or set the `OPENAI_API_KEY` environme
 Your encrypted vault is stored at:
 
 ```
-~/Library/Application Support/mymind/vault.db
+~/Library/Application Support/com.antoinepirard.atlas/vault.db
 ```
 
 ## Security Notes
