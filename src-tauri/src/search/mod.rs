@@ -96,6 +96,25 @@ pub fn semantic_search(
     })
 }
 
+/// Normalize text for search comparison
+/// Treats hyphens, underscores as spaces for flexible matching
+fn normalize_for_search(text: &str) -> String {
+    text.to_lowercase()
+        .replace('-', " ")
+        .replace('_', " ")
+}
+
+/// Check if all words from query appear in the text (in any order)
+fn words_match(query: &str, text: &str) -> bool {
+    let query_normalized = normalize_for_search(query);
+    let text_normalized = normalize_for_search(text);
+    
+    let query_words: Vec<&str> = query_normalized.split_whitespace().collect();
+    
+    // All query words must appear in the text
+    query_words.iter().all(|word| text_normalized.contains(word))
+}
+
 /// Perform text search using FTS5 index (fast)
 #[tauri::command]
 pub fn text_search(
@@ -106,8 +125,19 @@ pub fn text_search(
     let key = state.get_key().ok_or("Vault is locked")?;
     let limit = limit.unwrap_or(50) as u32;
 
-    // Escape query for FTS5 (wrap in quotes for phrase matching, add * for prefix)
-    let fts_query = format!("\"{}\"*", query.replace("\"", "\"\""));
+    // Build FTS5 query: split into words, each with wildcard, combined with AND
+    // This allows "all in" to match "all-in" since FTS5 tokenizes on hyphens
+    let words: Vec<String> = query
+        .split(|c: char| c.is_whitespace() || c == '-' || c == '_')
+        .filter(|w| !w.is_empty())
+        .map(|w| format!("{}*", w.replace("\"", "\"\"")))
+        .collect();
+    
+    let fts_query = if words.is_empty() {
+        query.clone()
+    } else {
+        words.join(" AND ")
+    };
 
     // Try FTS5 search first
     let fts_results = state.db.search_fts(&fts_query, limit);
@@ -130,7 +160,6 @@ pub fn text_search(
         }
         _ => {
             // Fall back to brute-force search if FTS fails or returns nothing
-            let query_lower = query.to_lowercase();
             let encrypted_items = state.db.get_all_items().map_err(|e| e.to_string())?;
 
             let mut matches = Vec::new();
@@ -143,12 +172,13 @@ pub fn text_search(
                             item.summary.as_deref().unwrap_or(""),
                             &item.content,
                         ]
-                        .join(" ")
-                        .to_lowercase();
+                        .join(" ");
 
-                        let tags_match = item.tags.iter().any(|t| t.to_lowercase().contains(&query_lower));
+                        // Check if query words match in searchable text or tags
+                        let text_match = words_match(&query, &searchable);
+                        let tags_match = item.tags.iter().any(|t| words_match(&query, t));
 
-                        if searchable.contains(&query_lower) || tags_match {
+                        if text_match || tags_match {
                             item.embedding = None;
                             matches.push(item);
 
