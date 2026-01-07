@@ -18,7 +18,7 @@ import { UpdateToast } from "./UpdateToast";
 import type { QuickCaptureData } from "./QuickCaptureModal";
 import { useVault } from "./VaultProvider";
 import { useMymind } from "../hooks/useMymind";
-import { startWindowDrag, toggleMaximize } from "../lib/tauri";
+import { toggleMaximize } from "../lib/tauri";
 import type { MymindItem } from "../types";
 
 export function MymindApp() {
@@ -279,9 +279,9 @@ export function MymindApp() {
       <PasteIndicator isVisible={isPasting} />
 
       <header className="sticky top-0 z-40 bg-stone-100/95 backdrop-blur-sm border-b border-stone-200/50">
-        {/* Draggable title bar region */}
+        {/* Draggable title bar region - uses data-tauri-drag-region for native behavior */}
         <div
-          onMouseDown={() => startWindowDrag()}
+          data-tauri-drag-region
           onDoubleClick={() => toggleMaximize()}
           className="h-7 w-full cursor-default select-none"
         />
