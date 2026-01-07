@@ -33,6 +33,8 @@ pub struct QuickCaptureData {
     pub page_title: Option<String>,
     /// The selected text (if any)
     pub selected_text: Option<String>,
+    /// HTML content from clipboard (for better formatting preservation)
+    pub html_content: Option<String>,
 }
 
 /// List of supported browser bundle identifiers and their display names
@@ -226,6 +228,83 @@ pub fn get_selected_text() -> Result<Option<String>, String> {
     }
 }
 
+/// Copy the current selection to clipboard using Cmd+C
+fn copy_selection_to_clipboard() -> Result<(), String> {
+    let script = r#"
+        tell application "System Events"
+            keystroke "c" using command down
+        end tell
+        delay 0.1
+    "#;
+    run_applescript(script).map(|_| ())
+}
+
+/// Get HTML content from the clipboard
+fn get_clipboard_html() -> Option<String> {
+    let script = r#"
+        use framework "AppKit"
+        use scripting additions
+        
+        set htmlContent to ""
+        
+        try
+            set pb to current application's NSPasteboard's generalPasteboard()
+            set htmlType to current application's NSPasteboardTypeHTML
+            
+            if (pb's availableTypeFromArray:{htmlType}) is not missing value then
+                set htmlContent to (pb's stringForType:htmlType) as text
+            end if
+        end try
+        
+        return htmlContent
+    "#;
+    
+    match run_applescript(script) {
+        Ok(html) => {
+            let trimmed = html.trim();
+            if trimmed.is_empty() || trimmed == "missing value" {
+                None
+            } else {
+                Some(trimmed.to_string())
+            }
+        }
+        Err(_) => None,
+    }
+}
+
+/// Get plain text from the clipboard
+fn get_clipboard_text() -> Option<String> {
+    let script = r#"
+        use framework "AppKit"
+        use scripting additions
+        
+        set textContent to ""
+        
+        try
+            set pb to current application's NSPasteboard's generalPasteboard()
+            set textType to current application's NSPasteboardTypeString
+            
+            if (pb's availableTypeFromArray:{textType}) is not missing value then
+                set textContent to (pb's stringForType:textType) as text
+            end if
+        end try
+        
+        return textContent
+    "#;
+    
+    match run_applescript(script) {
+        Ok(text) => {
+            let trimmed = text.trim();
+            if trimmed.is_empty() || trimmed == "missing value" {
+                None
+            } else {
+                Some(trimmed.to_string())
+            }
+        }
+        Err(_) => None,
+    }
+}
+
 /// Perform a complete quick capture operation
 pub fn capture() -> Result<QuickCaptureData, String> {
     // Get the frontmost application
@@ -243,8 +322,25 @@ pub fn capture() -> Result<QuickCaptureData, String> {
         (None, None)
     };
     
-    // Get selected text
-    let selected_text = get_selected_text()?;
+    // First try to get selected text using accessibility API (faster, no clipboard modification)
+    let accessibility_text = get_selected_text()?;
+    
+    // If we have selected text and it's from a browser, try to get HTML via clipboard
+    let (selected_text, html_content) = if accessibility_text.is_some() && is_browser {
+        // Copy selection to clipboard to get HTML formatting
+        if copy_selection_to_clipboard().is_ok() {
+            // Small delay to ensure clipboard is updated
+            std::thread::sleep(std::time::Duration::from_millis(50));
+            
+            let html = get_clipboard_html();
+            let text = get_clipboard_text().or(accessibility_text);
+            (text, html)
+        } else {
+            (accessibility_text, None)
+        }
+    } else {
+        (accessibility_text, None)
+    };
     
     Ok(QuickCaptureData {
         app_name,
@@ -252,6 +348,7 @@ pub fn capture() -> Result<QuickCaptureData, String> {
         url,
         page_title,
         selected_text,
+        html_content,
     })
 }
 

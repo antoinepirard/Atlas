@@ -20,6 +20,7 @@ import { useVault } from "./VaultProvider";
 import { useMymind } from "../hooks/useMymind";
 import { toggleMaximize } from "../lib/tauri";
 import type { MymindItem } from "../types";
+import { convertClipboardHtml } from "../utils/htmlToText";
 
 export function MymindApp() {
   const { lock, status } = useVault();
@@ -115,9 +116,11 @@ export function MymindApp() {
         const hasUrl = data.url && data.url.length > 0;
         const hasText =
           data.selected_text && data.selected_text.trim().length > 0;
+        const hasHtml =
+          data.html_content && data.html_content.trim().length > 0;
         const sourceUrl = data.url || undefined;
 
-        if (!hasUrl && !hasText) return;
+        if (!hasUrl && !hasText && !hasHtml) return;
 
         try {
           // Save URL as a link if present
@@ -126,7 +129,13 @@ export function MymindApp() {
           }
 
           // Save selected text as a note with source_url property
-          if (hasText && data.selected_text) {
+          // Prefer HTML content for better formatting preservation
+          if (hasHtml && data.html_content) {
+            const text = convertClipboardHtml(data.html_content);
+            if (text.trim()) {
+              await addContent(text, sourceUrl);
+            }
+          } else if (hasText && data.selected_text) {
             const text = data.selected_text.trim();
             await addContent(text, sourceUrl);
           }
@@ -281,11 +290,22 @@ export function MymindApp() {
         }
       }
 
-      const text = e.clipboardData?.getData("text/plain");
-      if (text && text.trim()) {
+      // Try to get HTML first for better formatting preservation
+      const html = e.clipboardData?.getData("text/html");
+      const plainText = e.clipboardData?.getData("text/plain");
+
+      let text = "";
+      if (html && html.trim()) {
+        // Convert HTML to clean text while preserving structure
+        text = convertClipboardHtml(html);
+      } else if (plainText) {
+        text = plainText.trim();
+      }
+
+      if (text) {
         e.preventDefault();
         setIsPasting(true);
-        await addContent(text.trim());
+        await addContent(text);
         setIsPasting(false);
       }
     };

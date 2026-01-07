@@ -90,5 +90,7 @@ export interface QuickCaptureData {
   url: string | null;
   page_title: string | null;
   selected_text: string | null;
+  /** HTML content from clipboard (for better formatting preservation) */
+  html_content: string | null;
 }
 

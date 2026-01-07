@@ -27,10 +27,12 @@ function NotePreview({ content }: { content: string }) {
   }
 
   return (
-    <div className="p-8 w-full h-full flex items-center justify-center bg-gradient-to-br from-amber-50 to-orange-50">
-      <p className="text-2xl text-stone-700 font-serif leading-relaxed max-w-lg text-center whitespace-pre-wrap">
-        {content}
-      </p>
+    <div className="p-8 w-full h-full overflow-auto bg-gradient-to-br from-amber-50 to-orange-50">
+      <div className="min-h-full flex items-center justify-center">
+        <p className="text-xl text-stone-700 font-serif leading-relaxed max-w-2xl whitespace-pre-wrap">
+          {content}
+        </p>
+      </div>
     </div>
   );
 }
