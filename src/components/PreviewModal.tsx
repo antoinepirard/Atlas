@@ -1,4 +1,4 @@
-import { useMemo, useEffect, useState } from "react";
+import { useMemo, useEffect, useState, useCallback } from "react";
 import { motion, AnimatePresence } from "motion/react";
 import {
   XMarkIcon,
@@ -7,126 +7,15 @@ import {
   ChevronLeftIcon,
   ChevronRightIcon,
 } from "@heroicons/react/24/outline";
-import ReactMarkdown from "react-markdown";
 import type { MymindItem } from "../types";
-import { NoteContent } from "./CodeBlock";
-import { detectCode } from "../utils/codeDetection";
 import * as tauri from "../lib/tauri";
-
-// Get font size class based on content length
-function getFontSizeClass(contentLength: number): string {
-  if (contentLength < 100) return "text-3xl";
-  if (contentLength < 300) return "text-2xl";
-  if (contentLength < 600) return "text-xl";
-  if (contentLength < 1200) return "text-lg";
-  return "text-base";
-}
-
-// Note preview component that handles both code and regular text
-function NotePreview({ content }: { content: string }) {
-  const { isCode } = useMemo(() => detectCode(content), [content]);
-  const fontSizeClass = useMemo(
-    () => getFontSizeClass(content.length),
-    [content.length]
-  );
-
-  if (isCode) {
-    return (
-      <div className="p-6 w-full h-full flex items-start justify-center overflow-auto modal-scrollable bg-[#1e1e2e]">
-        <div className="w-full max-w-4xl">
-          <NoteContent content={content} />
-        </div>
-      </div>
-    );
-  }
-
-  return (
-    <div className="p-8 w-full h-full overflow-auto modal-scrollable bg-gradient-to-br from-amber-50 to-orange-50">
-      <div className="min-h-full flex items-center justify-center py-8">
-        <div
-          className={`max-w-2xl w-full ${fontSizeClass} text-stone-700 font-serif leading-relaxed note-markdown`}
-        >
-          <ReactMarkdown
-            components={{
-              h1: ({ children }) => (
-                <h1 className="text-[1.75em] font-bold mb-4 mt-6 first:mt-0 text-stone-800">
-                  {children}
-                </h1>
-              ),
-              h2: ({ children }) => (
-                <h2 className="text-[1.5em] font-semibold mb-3 mt-5 first:mt-0 text-stone-800">
-                  {children}
-                </h2>
-              ),
-              h3: ({ children }) => (
-                <h3 className="text-[1.25em] font-semibold mb-2 mt-4 first:mt-0 text-stone-800">
-                  {children}
-                </h3>
-              ),
-              h4: ({ children }) => (
-                <h4 className="text-[1.1em] font-medium mb-2 mt-3 first:mt-0 text-stone-800">
-                  {children}
-                </h4>
-              ),
-              p: ({ children }) => <p className="mb-4 last:mb-0">{children}</p>,
-              ul: ({ children }) => (
-                <ul className="list-disc list-outside ml-6 mb-4 space-y-1">
-                  {children}
-                </ul>
-              ),
-              ol: ({ children }) => (
-                <ol className="list-decimal list-outside ml-6 mb-4 space-y-1">
-                  {children}
-                </ol>
-              ),
-              li: ({ children }) => <li className="pl-1">{children}</li>,
-              blockquote: ({ children }) => (
-                <blockquote className="border-l-4 border-amber-300 pl-4 py-1 my-4 italic text-stone-600 bg-amber-50/50 rounded-r">
-                  {children}
-                </blockquote>
-              ),
-              code: ({ className, children }) => {
-                const isInline = !className;
-                if (isInline) {
-                  return (
-                    <code className="bg-stone-200/70 text-stone-800 px-1.5 py-0.5 rounded text-[0.9em] font-mono">
-                      {children}
-                    </code>
-                  );
-                }
-                return (
-                  <code className="block bg-stone-800 text-stone-100 p-4 rounded-lg my-4 text-[0.85em] font-mono overflow-x-auto">
-                    {children}
-                  </code>
-                );
-              },
-              pre: ({ children }) => <pre className="my-4">{children}</pre>,
-              a: ({ href, children }) => (
-                <a
-                  href={href}
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  className="text-amber-600 hover:text-amber-700 underline underline-offset-2"
-                >
-                  {children}
-                </a>
-              ),
-              strong: ({ children }) => (
-                <strong className="font-semibold text-stone-800">
-                  {children}
-                </strong>
-              ),
-              em: ({ children }) => <em className="italic">{children}</em>,
-              hr: () => <hr className="my-6 border-stone-300" />,
-            }}
-          >
-            {content}
-          </ReactMarkdown>
-        </div>
-      </div>
-    </div>
-  );
-}
+import {
+  getYouTubeVideoId,
+  getXPostInfo,
+  formatDate,
+  getDomain,
+} from "../utils/urlUtils";
+import { SimpleNoteEditor } from "./SimpleNoteEditor";
 
 interface PreviewModalProps {
   item: MymindItem | null;
@@ -135,77 +24,7 @@ interface PreviewModalProps {
   onNavigate?: (direction: "prev" | "next") => void;
   totalItems?: number;
   currentIndex?: number;
-}
-
-function getYouTubeVideoId(url: string): string | null {
-  try {
-    const urlObj = new URL(url);
-    const hostname = urlObj.hostname.replace("www.", "");
-
-    if (hostname === "youtube.com" && urlObj.pathname === "/watch") {
-      return urlObj.searchParams.get("v");
-    }
-    if (hostname === "youtu.be") {
-      return urlObj.pathname.slice(1);
-    }
-    if (hostname === "youtube.com" && urlObj.pathname.startsWith("/embed/")) {
-      return urlObj.pathname.replace("/embed/", "");
-    }
-
-    return null;
-  } catch {
-    return null;
-  }
-}
-
-function getXPostInfo(
-  url: string
-): { username: string; postId: string } | null {
-  try {
-    const urlObj = new URL(url);
-    const hostname = urlObj.hostname.replace("www.", "");
-
-    if (hostname !== "x.com" && hostname !== "twitter.com") {
-      return null;
-    }
-
-    const match = urlObj.pathname.match(/^\/([^/]+)\/status\/(\d+)/);
-    if (match) {
-      return { username: match[1], postId: match[2] };
-    }
-
-    return null;
-  } catch {
-    return null;
-  }
-}
-
-function formatDate(dateString: string): string {
-  const date = new Date(dateString);
-  const now = new Date();
-  const diffMs = now.getTime() - date.getTime();
-  const diffMins = Math.floor(diffMs / 60000);
-  const diffHours = Math.floor(diffMs / 3600000);
-  const diffDays = Math.floor(diffMs / 86400000);
-
-  if (diffMins < 1) return "Just now";
-  if (diffMins < 60) return `${diffMins} minute${diffMins > 1 ? "s" : ""} ago`;
-  if (diffHours < 24) return `${diffHours} hour${diffHours > 1 ? "s" : ""} ago`;
-  if (diffDays < 7) return `${diffDays} day${diffDays > 1 ? "s" : ""} ago`;
-
-  return date.toLocaleDateString("en-US", {
-    month: "short",
-    day: "numeric",
-    year: date.getFullYear() !== now.getFullYear() ? "numeric" : undefined,
-  });
-}
-
-function getDomain(url: string): string {
-  try {
-    return new URL(url).hostname.replace("www.", "");
-  } catch {
-    return url;
-  }
+  onUpdateItem?: (item: MymindItem) => Promise<MymindItem | null>;
 }
 
 export function PreviewModal({
@@ -215,10 +34,39 @@ export function PreviewModal({
   onNavigate,
   totalItems = 0,
   currentIndex = -1,
+  onUpdateItem,
 }: PreviewModalProps) {
   const [isHovering, setIsHovering] = useState(false);
   const [fullImageUrl, setFullImageUrl] = useState<string | null>(null);
   const [isLoadingFullImage, setIsLoadingFullImage] = useState(false);
+
+  // Inline note editing state
+  const [editedContent, setEditedContent] = useState("");
+  const [isSaving, setIsSaving] = useState(false);
+
+  // Initialize edited content when item changes
+  useEffect(() => {
+    if (item?.type === "note") {
+      setEditedContent(item.content);
+    }
+  }, [item?.id, item?.type, item?.content]);
+
+  const hasChanges = item?.type === "note" && editedContent !== item.content;
+
+  const handleSave = useCallback(async () => {
+    if (!item || !onUpdateItem || !hasChanges) return;
+    setIsSaving(true);
+    try {
+      const updatedItem = {
+        ...item,
+        content: editedContent,
+        updated_at: new Date().toISOString(),
+      };
+      await onUpdateItem(updatedItem);
+    } finally {
+      setIsSaving(false);
+    }
+  }, [item, editedContent, onUpdateItem, hasChanges]);
 
   const youtubeVideoId = useMemo(() => {
     if (!item || item.type !== "url") return null;
@@ -237,7 +85,6 @@ export function PreviewModal({
       return;
     }
 
-    // If it's an image with external storage, load the full image
     if (item.type === "image" && item.image_external) {
       setIsLoadingFullImage(true);
       tauri
@@ -247,7 +94,6 @@ export function PreviewModal({
         })
         .catch((err) => {
           console.error("Failed to load full image:", err);
-          // Fall back to thumbnail
           setFullImageUrl(item.image_url || item.content);
         })
         .finally(() => {
@@ -268,11 +114,16 @@ export function PreviewModal({
     };
   }, [isOpen]);
 
-  // Handle keyboard navigation
+  // Handle keyboard navigation (but not for notes being edited)
   useEffect(() => {
     if (!isOpen) return;
 
     const handleKeyDown = (e: KeyboardEvent) => {
+      // Don't intercept if we're in a textarea
+      if ((e.target as HTMLElement)?.tagName === "TEXTAREA") {
+        return;
+      }
+
       if (e.key === "Escape") {
         onClose();
       }
@@ -314,14 +165,14 @@ export function PreviewModal({
             className="fixed top-10 left-6 right-6 bottom-6 z-50 flex"
           >
             <div className="w-full max-w-[1600px] h-full mx-auto flex rounded-2xl overflow-hidden bg-stone-100 shadow-2xl">
-              {/* Left: Content Preview */}
+              {/* Left: Content Preview / Editor */}
               <div
                 className="flex-1 bg-stone-900 flex items-center justify-center overflow-hidden relative"
                 onMouseEnter={() => setIsHovering(true)}
                 onMouseLeave={() => setIsHovering(false)}
               >
-                {/* Navigation arrows */}
-                {onNavigate && totalItems > 1 && (
+                {/* Navigation arrows (not for notes) */}
+                {onNavigate && totalItems > 1 && item.type !== "note" && (
                   <>
                     <button
                       onClick={() => onNavigate("prev")}
@@ -341,7 +192,6 @@ export function PreviewModal({
                     >
                       <ChevronRightIcon className="w-6 h-6" />
                     </button>
-                    {/* Item counter */}
                     <div
                       className={`absolute bottom-4 left-1/2 -translate-x-1/2 px-3 py-1.5 rounded-full bg-white/10 text-white/80 text-sm font-medium z-10 transition-all ${
                         isHovering ? "opacity-100" : "opacity-0"
@@ -351,6 +201,7 @@ export function PreviewModal({
                     </div>
                   </>
                 )}
+
                 {item.type === "image" && (
                   <>
                     {isLoadingFullImage && (
@@ -412,11 +263,20 @@ export function PreviewModal({
                     </div>
                   )}
 
-                {item.type === "note" && <NotePreview content={item.content} />}
+                {/* Simple inline note editor - click to edit */}
+                {item.type === "note" && onUpdateItem && (
+                  <SimpleNoteEditor
+                    content={editedContent}
+                    onChange={setEditedContent}
+                    onSave={handleSave}
+                    hasChanges={hasChanges}
+                    isSaving={isSaving}
+                  />
+                )}
               </div>
 
               {/* Right: Details Panel */}
-              <div className="w-96 p-6 flex flex-col bg-white overflow-y-auto modal-scrollable relative">
+              <div className="w-80 p-6 flex flex-col bg-white overflow-y-auto modal-scrollable relative">
                 {/* Close button */}
                 <button
                   onClick={onClose}

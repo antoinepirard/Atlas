@@ -96,3 +96,47 @@ export interface QuickCaptureData {
   html_content: string | null;
 }
 
+// Smart Search Types
+
+/** Filter kind for parsed tokens */
+export type FilterKind = 'date' | 'type' | 'color' | 'tag';
+
+/** A single parsed token from the search query */
+export interface ParsedToken {
+  /** Original text of the token */
+  text: string;
+  /** Whether this token is a filter or plain text */
+  type: 'filter' | 'text';
+  /** The kind of filter if type is 'filter' */
+  filterKind?: FilterKind;
+  /** Confidence score (0-1), 1.0 for deterministic matches */
+  confidence: number;
+  /** The resolved/normalized value (e.g., hex color, date ISO string) */
+  resolvedValue?: string;
+}
+
+/** Date range filter */
+export interface DateRangeFilter {
+  start: Date;
+  end: Date;
+  /** Human-readable label like "yesterday" or "last week" */
+  label: string;
+}
+
+/** Parsed query with structured filters */
+export interface ParsedQuery {
+  /** All tokens with their classifications */
+  tokens: ParsedToken[];
+  /** Extracted filters */
+  filters: {
+    dateRange?: DateRangeFilter;
+    types?: ItemType[];
+    colors?: string[];
+    tags?: string[];
+  };
+  /** Remaining text for semantic/text search */
+  remainingText: string;
+  /** Original raw query */
+  rawQuery: string;
+}
+

@@ -8,7 +8,7 @@ import {
 import { listen } from "@tauri-apps/api/event";
 import { SearchBar } from "./SearchBar";
 import { MasonryGrid } from "./MasonryGrid";
-import { ItemCard } from "./ItemCard";
+import { ItemCard } from "./cards";
 import { AddContentModal } from "./AddContentModal";
 import { PreviewModal } from "./PreviewModal";
 import { SettingsModal } from "./SettingsModal";
@@ -43,10 +43,12 @@ export function MymindApp() {
     isSearching,
     searchQuery,
     filterType,
+    allTags,
     addContent,
     uploadImage,
     deleteItem,
     deleteItems,
+    updateItem,
     handleSearch,
     handleFilterType,
     loadMore,
@@ -446,6 +448,7 @@ export function MymindApp() {
             isLoading={isSearching}
             placeholder="Search..."
             compact={isScrolled}
+            existingTags={allTags}
           />
         </div>
       </header>
@@ -550,6 +553,13 @@ export function MymindApp() {
         currentIndex={
           selectedItem ? items.findIndex((i) => i.id === selectedItem.id) : -1
         }
+        onUpdateItem={async (item) => {
+          const result = await updateItem(item);
+          if (result) {
+            setSelectedItem(result);
+          }
+          return result;
+        }}
       />
 
       <SettingsModal

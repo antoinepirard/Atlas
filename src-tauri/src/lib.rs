@@ -424,11 +424,13 @@ pub fn run() {
             commands::process_with_ai,
             commands::get_search_embedding,
             commands::fetch_url_metadata,
+            commands::classify_search_tokens,
             // Search commands (server-side)
             search::semantic_search,
             search::text_search,
             search::reindex_all_embeddings,
             search::rebuild_fts_index,
+            search::get_all_tags,
             // Quick capture commands
             trigger_quick_capture,
             check_accessibility_permission,

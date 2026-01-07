@@ -129,6 +129,20 @@ export async function getSearchEmbedding(query: string): Promise<number[]> {
   return invoke('get_search_embedding', { query });
 }
 
+export interface TokenClassification {
+  token: string;
+  filter_kind: 'date' | 'type' | 'color' | 'tag' | null;
+  confidence: number;
+  resolved_value: string | null;
+}
+
+export async function classifySearchTokens(
+  tokens: string[],
+  existingTags: string[] = []
+): Promise<TokenClassification[]> {
+  return invoke('classify_search_tokens', { tokens, existingTags });
+}
+
 // Server-side search commands
 export async function semanticSearch(queryEmbedding: number[], limit?: number): Promise<SearchResponse> {
   return invoke('semantic_search', { queryEmbedding, limit });
@@ -144,6 +158,10 @@ export async function reindexAllEmbeddings(): Promise<ReindexResult> {
 
 export async function rebuildFtsIndex(): Promise<ReindexResult> {
   return invoke('rebuild_fts_index');
+}
+
+export async function getAllTags(): Promise<string[]> {
+  return invoke('get_all_tags');
 }
 
 export async function fetchUrlMetadata(url: string): Promise<UrlMetadata> {

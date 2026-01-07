@@ -326,3 +326,30 @@ pub fn remove_item_fts(item_id: &str, state: &State<VaultState>) -> Result<(), S
         .map_err(|e| format!("Failed to remove from FTS: {}", e))
 }
 
+/// Get all unique tags across all items
+/// Used for smart search autocomplete
+#[tauri::command]
+pub fn get_all_tags(state: State<VaultState>) -> Result<Vec<String>, String> {
+    use std::collections::HashSet;
+    
+    let key = state.get_key().ok_or("Vault is locked")?;
+    let encrypted_items = state.db.get_all_items().map_err(|e| e.to_string())?;
+    
+    let mut tags_set: HashSet<String> = HashSet::new();
+    
+    for encrypted in encrypted_items {
+        if let Ok(json) = crypto::decrypt(&encrypted.encrypted_data, &key) {
+            if let Ok(item) = serde_json::from_str::<MymindItem>(&json) {
+                for tag in item.tags {
+                    tags_set.insert(tag);
+                }
+            }
+        }
+    }
+    
+    let mut tags: Vec<String> = tags_set.into_iter().collect();
+    tags.sort();
+    
+    Ok(tags)
+}
+
