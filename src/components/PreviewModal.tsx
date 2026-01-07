@@ -209,6 +209,23 @@ export function PreviewModal({ item, isOpen, onClose }: PreviewModalProps) {
                   </div>
                 )}
 
+                {/* Source URL for notes/images */}
+                {item.type !== 'url' && item.source_url && (
+                  <div className="mt-6">
+                    <p className="text-xs font-medium text-stone-400 uppercase tracking-wider mb-2">Captured from</p>
+                    <a
+                      href={item.source_url}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="flex items-center gap-2 text-sm text-amber-600 hover:text-amber-700 transition-colors group"
+                    >
+                      <LinkIcon className="w-4 h-4 flex-shrink-0" />
+                      <span className="truncate">{getDomain(item.source_url)}</span>
+                      <ArrowTopRightOnSquareIcon className="w-4 h-4 flex-shrink-0 opacity-0 group-hover:opacity-100 transition-opacity" />
+                    </a>
+                  </div>
+                )}
+
                 {/* Spacer */}
                 <div className="flex-1" />
 

@@ -24,6 +24,7 @@ pub struct MymindItem {
     pub description: Option<String>,
     pub summary: Option<String>,
     pub image_url: Option<String>,
+    pub source_url: Option<String>,
     pub tags: Vec<String>,
     pub embedding: Option<Vec<f32>>,
     pub created_at: String,
@@ -40,6 +41,7 @@ pub struct AddItemInput {
     pub description: Option<String>,
     pub summary: Option<String>,
     pub image_url: Option<String>,
+    pub source_url: Option<String>,
     pub tags: Vec<String>,
     pub embedding: Option<Vec<f32>>,
 }
@@ -87,6 +89,7 @@ pub fn add_item(input: AddItemInput, state: State<VaultState>) -> Result<MymindI
         description: input.description,
         summary: input.summary,
         image_url: input.image_url,
+        source_url: input.source_url,
         tags: input.tags,
         embedding: input.embedding,
         created_at: now.clone(),

@@ -1,1 +1,1 @@
-Read readme.md and release the changes made. Ask me what changes to release if unsure but always follow the process indicated in the readme.
+Read release.md file and atlas.mdc that are in /cursor and release the changes made. Follow the natural order of tags for the release based on what was release previously. Add release notes to the github release.

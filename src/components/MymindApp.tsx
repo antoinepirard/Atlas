@@ -52,22 +52,20 @@ export function MymindApp() {
       const data = event.payload;
       const hasUrl = data.url && data.url.length > 0;
       const hasText = data.selected_text && data.selected_text.trim().length > 0;
+      const sourceUrl = data.url || undefined;
 
       if (!hasUrl && !hasText) return;
 
       try {
-        // Save URL if present
+        // Save URL as a link if present
         if (hasUrl && data.url) {
           await addContent(data.url);
         }
         
-        // Save text as note if present (with source reference if URL exists)
+        // Save selected text as a note with source_url property
         if (hasText && data.selected_text) {
           const text = data.selected_text.trim();
-          const contentWithSource = hasUrl && data.url
-            ? `${text}\n\n---\nSource: ${data.url}`
-            : text;
-          await addContent(contentWithSource);
+          await addContent(text, sourceUrl);
         }
       } catch (error) {
         console.error('Quick capture failed:', error);

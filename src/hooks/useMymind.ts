@@ -155,7 +155,7 @@ export function useMymind() {
   }, [items, searchQuery, filterType, semanticResults]);
 
   // Add content
-  const addContent = useCallback(async (content: string): Promise<MymindItem | null> => {
+  const addContent = useCallback(async (content: string, sourceUrl?: string): Promise<MymindItem | null> => {
     setIsLoading(true);
     setError(null);
 
@@ -196,6 +196,7 @@ export function useMymind() {
         description,
         summary: summary || undefined,
         image_url: imageUrl,
+        source_url: sourceUrl,
         tags,
         embedding: embedding.length > 0 ? embedding : undefined,
       });

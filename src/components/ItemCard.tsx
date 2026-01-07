@@ -232,8 +232,17 @@ export function ItemCard({ item, onDelete, onClick }: ItemCardProps) {
           </div>
         )}
 
-        <div className="text-[10px] text-stone-400">
-          {formatDate(item.created_at)}
+        <div className="flex items-center gap-2 text-[10px] text-stone-400">
+          <span>{formatDate(item.created_at)}</span>
+          {item.source_url && (
+            <>
+              <span>·</span>
+              <span className="flex items-center gap-1 truncate">
+                <LinkIcon className="w-3 h-3" />
+                {getDomain(item.source_url)}
+              </span>
+            </>
+          )}
         </div>
       </div>
 

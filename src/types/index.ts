@@ -8,6 +8,7 @@ export interface MymindItem {
   description: string | null;
   summary: string | null;
   image_url: string | null;
+  source_url: string | null;
   tags: string[];
   embedding: number[] | null;
   created_at: string;
@@ -21,6 +22,7 @@ export interface AddItemInput {
   description?: string;
   summary?: string;
   image_url?: string;
+  source_url?: string;
   tags: string[];
   embedding?: number[];
 }

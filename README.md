@@ -1,4 +1,4 @@
-# mymind - Desktop App
+# Atlas - Desktop App
 
 A private, encrypted mind vault for macOS built with Tauri + React.
 
