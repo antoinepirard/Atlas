@@ -71,3 +71,20 @@ html.is-scrolling::-webkit-scrollbar-thumb:hover {
   background: transparent;
 }
 
+/* Always show scrollbar in modal content */
+.modal-scrollable {
+  scrollbar-color: rgba(0, 0, 0, 0.3) transparent;
+}
+
+.modal-scrollable::-webkit-scrollbar-thumb {
+  background: rgba(0, 0, 0, 0.2);
+  border: 2px solid transparent;
+  background-clip: content-box;
+}
+
+.modal-scrollable::-webkit-scrollbar-thumb:hover {
+  background: rgba(0, 0, 0, 0.4);
+  border: 2px solid transparent;
+  background-clip: content-box;
+}
+

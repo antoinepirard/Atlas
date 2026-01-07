@@ -7,18 +7,32 @@ import {
   ChevronLeftIcon,
   ChevronRightIcon,
 } from "@heroicons/react/24/outline";
+import ReactMarkdown from "react-markdown";
 import type { MymindItem } from "../types";
 import { NoteContent } from "./CodeBlock";
 import { detectCode } from "../utils/codeDetection";
 import * as tauri from "../lib/tauri";
 
+// Get font size class based on content length
+function getFontSizeClass(contentLength: number): string {
+  if (contentLength < 100) return "text-3xl";
+  if (contentLength < 300) return "text-2xl";
+  if (contentLength < 600) return "text-xl";
+  if (contentLength < 1200) return "text-lg";
+  return "text-base";
+}
+
 // Note preview component that handles both code and regular text
 function NotePreview({ content }: { content: string }) {
   const { isCode } = useMemo(() => detectCode(content), [content]);
+  const fontSizeClass = useMemo(
+    () => getFontSizeClass(content.length),
+    [content.length]
+  );
 
   if (isCode) {
     return (
-      <div className="p-6 w-full h-full flex items-start justify-center overflow-auto bg-[#1e1e2e]">
+      <div className="p-6 w-full h-full flex items-start justify-center overflow-auto modal-scrollable bg-[#1e1e2e]">
         <div className="w-full max-w-4xl">
           <NoteContent content={content} />
         </div>
@@ -27,11 +41,88 @@ function NotePreview({ content }: { content: string }) {
   }
 
   return (
-    <div className="p-8 w-full h-full overflow-auto bg-gradient-to-br from-amber-50 to-orange-50">
-      <div className="min-h-full flex items-center justify-center">
-        <p className="text-xl text-stone-700 font-serif leading-relaxed max-w-2xl whitespace-pre-wrap">
-          {content}
-        </p>
+    <div className="p-8 w-full h-full overflow-auto modal-scrollable bg-gradient-to-br from-amber-50 to-orange-50">
+      <div className="min-h-full flex items-center justify-center py-8">
+        <div
+          className={`max-w-2xl w-full ${fontSizeClass} text-stone-700 font-serif leading-relaxed note-markdown`}
+        >
+          <ReactMarkdown
+            components={{
+              h1: ({ children }) => (
+                <h1 className="text-[1.75em] font-bold mb-4 mt-6 first:mt-0 text-stone-800">
+                  {children}
+                </h1>
+              ),
+              h2: ({ children }) => (
+                <h2 className="text-[1.5em] font-semibold mb-3 mt-5 first:mt-0 text-stone-800">
+                  {children}
+                </h2>
+              ),
+              h3: ({ children }) => (
+                <h3 className="text-[1.25em] font-semibold mb-2 mt-4 first:mt-0 text-stone-800">
+                  {children}
+                </h3>
+              ),
+              h4: ({ children }) => (
+                <h4 className="text-[1.1em] font-medium mb-2 mt-3 first:mt-0 text-stone-800">
+                  {children}
+                </h4>
+              ),
+              p: ({ children }) => <p className="mb-4 last:mb-0">{children}</p>,
+              ul: ({ children }) => (
+                <ul className="list-disc list-outside ml-6 mb-4 space-y-1">
+                  {children}
+                </ul>
+              ),
+              ol: ({ children }) => (
+                <ol className="list-decimal list-outside ml-6 mb-4 space-y-1">
+                  {children}
+                </ol>
+              ),
+              li: ({ children }) => <li className="pl-1">{children}</li>,
+              blockquote: ({ children }) => (
+                <blockquote className="border-l-4 border-amber-300 pl-4 py-1 my-4 italic text-stone-600 bg-amber-50/50 rounded-r">
+                  {children}
+                </blockquote>
+              ),
+              code: ({ className, children }) => {
+                const isInline = !className;
+                if (isInline) {
+                  return (
+                    <code className="bg-stone-200/70 text-stone-800 px-1.5 py-0.5 rounded text-[0.9em] font-mono">
+                      {children}
+                    </code>
+                  );
+                }
+                return (
+                  <code className="block bg-stone-800 text-stone-100 p-4 rounded-lg my-4 text-[0.85em] font-mono overflow-x-auto">
+                    {children}
+                  </code>
+                );
+              },
+              pre: ({ children }) => <pre className="my-4">{children}</pre>,
+              a: ({ href, children }) => (
+                <a
+                  href={href}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="text-amber-600 hover:text-amber-700 underline underline-offset-2"
+                >
+                  {children}
+                </a>
+              ),
+              strong: ({ children }) => (
+                <strong className="font-semibold text-stone-800">
+                  {children}
+                </strong>
+              ),
+              em: ({ children }) => <em className="italic">{children}</em>,
+              hr: () => <hr className="my-6 border-stone-300" />,
+            }}
+          >
+            {content}
+          </ReactMarkdown>
+        </div>
       </div>
     </div>
   );
@@ -166,6 +257,16 @@ export function PreviewModal({
       setFullImageUrl(null);
     }
   }, [item?.id, item?.type, item?.image_external, isOpen]);
+
+  // Hide body scrollbar when modal is open
+  useEffect(() => {
+    if (isOpen) {
+      document.body.style.overflow = "hidden";
+    }
+    return () => {
+      document.body.style.overflow = "";
+    };
+  }, [isOpen]);
 
   // Handle keyboard navigation
   useEffect(() => {
@@ -315,7 +416,7 @@ export function PreviewModal({
               </div>
 
               {/* Right: Details Panel */}
-              <div className="w-96 p-6 flex flex-col bg-white overflow-y-auto relative">
+              <div className="w-96 p-6 flex flex-col bg-white overflow-y-auto modal-scrollable relative">
                 {/* Close button */}
                 <button
                   onClick={onClose}
