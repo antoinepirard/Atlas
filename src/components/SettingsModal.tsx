@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback, useRef } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
 import {
   XMarkIcon,
@@ -38,6 +38,7 @@ export function SettingsModal({ isOpen, onClose }: SettingsModalProps) {
     setAutoLockMinutes,
     switchVault,
     startNewVault,
+    refreshStatus,
   } = useVault();
   const [activeTab, setActiveTab] = useState<SettingsTab>('general');
   const [apiKey, setApiKey] = useState('');
@@ -45,6 +46,10 @@ export function SettingsModal({ isOpen, onClose }: SettingsModalProps) {
   const [showApiKey, setShowApiKey] = useState(false);
   const [storagePath, setStoragePath] = useState('');
   const [isSavingApiKey, setIsSavingApiKey] = useState(false);
+  const [vaultNameDraft, setVaultNameDraft] = useState('');
+  const [isEditingVaultName, setIsEditingVaultName] = useState(false);
+  const [isSavingVaultName, setIsSavingVaultName] = useState(false);
+  const vaultNameInputRef = useRef<HTMLInputElement | null>(null);
   const [isMigrating, setIsMigrating] = useState(false);
   const [isSwitchingVault, setIsSwitchingVault] = useState(false);
   const [isMigratingImages, setIsMigratingImages] = useState(false);
@@ -64,6 +69,19 @@ export function SettingsModal({ isOpen, onClose }: SettingsModalProps) {
       checkAccessibility();
     }
   }, [isOpen]);
+
+  useEffect(() => {
+    if (isOpen) {
+      setVaultNameDraft(status.name?.trim() ?? '');
+      setIsEditingVaultName(false);
+    }
+  }, [isOpen, status.name]);
+
+  useEffect(() => {
+    if (!isEditingVaultName) return;
+    vaultNameInputRef.current?.focus();
+    vaultNameInputRef.current?.select();
+  }, [isEditingVaultName]);
 
   useEffect(() => {
     if (!isOpen) return;
@@ -219,6 +237,39 @@ export function SettingsModal({ isOpen, onClose }: SettingsModalProps) {
     }
   }, []);
 
+  const handleSaveVaultName = useCallback(async () => {
+    if (isSavingVaultName) return;
+    const trimmed = vaultNameDraft.trim();
+    const current = status.name?.trim() ?? '';
+    if (trimmed === current) {
+      setIsEditingVaultName(false);
+      return;
+    }
+
+    setIsSavingVaultName(true);
+    setError(null);
+    try {
+      await tauri.setVaultName(trimmed ? trimmed : null);
+      await refreshStatus();
+      setIsEditingVaultName(false);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Failed to update vault name');
+    } finally {
+      setIsSavingVaultName(false);
+    }
+  }, [vaultNameDraft, status.name, refreshStatus, isSavingVaultName]);
+
+  const handleVaultNameKeyDown = useCallback(
+    (e: React.KeyboardEvent<HTMLInputElement>) => {
+      if (e.key === 'Enter') {
+        e.stopPropagation();
+        e.preventDefault();
+        handleSaveVaultName();
+      }
+    },
+    [handleSaveVaultName]
+  );
+
   const handleKeyDown = useCallback((e: React.KeyboardEvent) => {
     if (e.key === 'Escape') {
       onClose();
@@ -246,6 +297,8 @@ export function SettingsModal({ isOpen, onClose }: SettingsModalProps) {
     { id: 'security', label: 'Security', icon: ShieldCheckIcon },
     { id: 'access', label: 'Access', icon: KeyIcon },
   ];
+  const vaultLabel = status.name?.trim();
+  const displayVaultLabel = vaultLabel || 'Untitled Vault';
 
   return (
     <AnimatePresence>
@@ -270,10 +323,32 @@ export function SettingsModal({ isOpen, onClose }: SettingsModalProps) {
             <div className="bg-white rounded-2xl shadow-2xl shadow-stone-900/10 overflow-hidden w-full max-w-2xl h-[600px] max-h-[calc(100vh-2rem)] pointer-events-auto flex">
               {/* Sidebar */}
               <div className="w-44 flex-shrink-0 bg-stone-50 border-r border-stone-200 flex flex-col">
-                <div className="px-4 py-5 border-b border-stone-200">
-                  <h2 className="text-lg font-medium text-stone-800">Settings</h2>
-                </div>
-                <nav className="p-2 flex-1">
+                <nav className="pt-4 px-2 pb-2 flex-1">
+                  <div className="px-3 pb-3">
+                    {isEditingVaultName ? (
+                      <input
+                        ref={vaultNameInputRef}
+                        value={vaultNameDraft}
+                        onChange={(e) => setVaultNameDraft(e.target.value)}
+                        onKeyDown={handleVaultNameKeyDown}
+                        onBlur={handleSaveVaultName}
+                        placeholder="Untitled Vault"
+                        className="w-full px-0 py-0 text-sm font-medium text-stone-700 bg-transparent border-0 border-b border-transparent placeholder-stone-400 focus:outline-none focus:border-stone-300 focus:ring-0"
+                      />
+                    ) : (
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setVaultNameDraft(vaultLabel ?? '');
+                          setIsEditingVaultName(true);
+                        }}
+                        className="w-full text-left text-sm font-medium text-stone-700 truncate hover:underline hover:decoration-dotted hover:decoration-stone-300 hover:underline-offset-2 transition-colors"
+                        title={displayVaultLabel}
+                      >
+                        {displayVaultLabel}
+                      </button>
+                    )}
+                  </div>
                   {tabs.map((tab) => {
                     const Icon = tab.icon;
                     return (

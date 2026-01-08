@@ -42,6 +42,10 @@ export async function setAutoLockMinutes(minutes: number): Promise<void> {
   return invoke("set_auto_lock_minutes", { minutes });
 }
 
+export async function setVaultName(name: string | null): Promise<void> {
+  return invoke("set_vault_name", { name });
+}
+
 export async function resetVault(): Promise<void> {
   return invoke("reset_vault");
 }

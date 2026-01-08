@@ -209,6 +209,23 @@ impl Database {
         )?;
         Ok(())
     }
+
+    /// Update vault name
+    pub fn set_vault_name(&self, name: Option<String>) -> SqliteResult<()> {
+        let conn = self.conn.lock().unwrap();
+        match name {
+            Some(value) => {
+                conn.execute(
+                    "INSERT OR REPLACE INTO vault_config (key, value) VALUES ('name', ?1)",
+                    [value],
+                )?;
+            }
+            None => {
+                conn.execute("DELETE FROM vault_config WHERE key = 'name'", [])?;
+            }
+        }
+        Ok(())
+    }
     
     /// Save an encrypted item
     pub fn save_item(&self, item: &EncryptedItem) -> SqliteResult<()> {

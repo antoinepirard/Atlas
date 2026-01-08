@@ -233,6 +233,21 @@ pub fn set_auto_lock_minutes(minutes: i32, state: State<VaultState>) -> Result<(
     Ok(())
 }
 
+/// Set vault name
+#[tauri::command]
+pub fn set_vault_name(name: Option<String>, state: State<VaultState>) -> Result<(), String> {
+    let name = name.and_then(|value| {
+        let trimmed = value.trim().to_string();
+        if trimmed.is_empty() {
+            None
+        } else {
+            Some(trimmed)
+        }
+    });
+    state.db.set_vault_name(name).map_err(|e| e.to_string())?;
+    Ok(())
+}
+
 /// Reset vault (destructive!)
 #[tauri::command]
 pub fn reset_vault(state: State<VaultState>) -> Result<(), String> {

@@ -68,9 +68,7 @@ export function XPostCard({
         isMultiSelectMode={isMultiSelectMode}
         isDeleting={isDeleting}
         onDelete={handleDelete}
-        externalUrl={item.content}
       />
     </motion.div>
   );
 }
-

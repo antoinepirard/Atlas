@@ -403,6 +403,7 @@ pub fn run() {
             commands::unlock_with_phrase,
             commands::lock_vault,
             commands::set_auto_lock_minutes,
+            commands::set_vault_name,
             commands::reset_vault,
             commands::get_storage_path,
             commands::set_storage_path,

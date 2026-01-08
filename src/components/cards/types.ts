@@ -23,7 +23,6 @@ export interface CardActionsProps {
   isMultiSelectMode?: boolean;
   isDeleting: boolean;
   onDelete: () => void;
-  externalUrl?: string;
   isDark?: boolean;
 }
 
@@ -31,4 +30,3 @@ export interface SelectionIndicatorProps {
   isMultiSelectMode?: boolean;
   isSelected?: boolean;
 }
-

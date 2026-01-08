@@ -100,9 +100,7 @@ export function UrlCard({
         isMultiSelectMode={isMultiSelectMode}
         isDeleting={isDeleting}
         onDelete={handleDelete}
-        externalUrl={item.content}
       />
     </motion.div>
   );
 }
-

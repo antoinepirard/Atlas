@@ -66,7 +66,6 @@ export function ImageCard({
           isMultiSelectMode={isMultiSelectMode}
           isDeleting={isDeleting}
           onDelete={handleDelete}
-          externalUrl={item.content}
         />
 
         <motion.div
@@ -95,4 +94,3 @@ export function ImageCard({
     </motion.div>
   );
 }
-
