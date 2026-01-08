@@ -13,11 +13,11 @@ fn get_api_key_path() -> Result<PathBuf, String> {
     let app_dir = dirs::data_local_dir()
         .ok_or_else(|| "Could not find app data directory".to_string())?
         .join(get_app_dir_name());
-    
+
     // Ensure directory exists
     fs::create_dir_all(&app_dir)
         .map_err(|e| format!("Failed to create app directory: {}", e))?;
-    
+
     Ok(app_dir.join(".openai_key"))
 }
 
@@ -106,7 +106,7 @@ pub(super) fn get_api_key() -> Result<String, String> {
             }
         }
     }
-    
+
     // Fall back to environment variable
     std::env::var("OPENAI_API_KEY")
         .map_err(|_| "OpenAI API key not found. Please set it in settings.".to_string())
@@ -120,14 +120,31 @@ pub fn save_api_key(api_key: String) -> Result<(), String> {
         return Err("API key is empty".to_string());
     }
 
-    let entry = keyring_entry()?;
-    match entry.set_password(trimmed) {
-        Ok(_) => {
-            remove_key_file();
-            Ok(())
-        }
+    // Try keychain first, fall back to file if keychain fails
+    match keyring_entry() {
+        Ok(entry) => {
+            match entry.set_password(trimmed) {
+                Ok(_) => {
+                    // Create a FRESH entry to verify - don't trust the same object's cache
+                    match keyring_entry() {
+                        Ok(verify_entry) => match verify_entry.get_password() {
+                            Ok(stored) if stored.trim() == trimmed => {
+                                remove_key_file();
+                                Ok(())
+                            }
+                            _ => save_key_to_file(trimmed)
+                        },
+                        Err(_) => save_key_to_file(trimmed)
+                    }
+                }
+                Err(err) => {
+                    eprintln!("Failed to store API key in keychain: {}", err);
+                    save_key_to_file(trimmed)
+                }
+            }
+        },
         Err(err) => {
-            eprintln!("Failed to store API key in keychain: {}", err);
+            eprintln!("{}", err);
             save_key_to_file(trimmed)
         }
     }

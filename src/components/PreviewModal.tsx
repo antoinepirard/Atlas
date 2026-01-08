@@ -98,11 +98,8 @@ export function PreviewModal({
 
   const youtubeEmbedUrl = useMemo(() => {
     if (!youtubeVideoId) return null;
-    const baseUrl = `https://www.youtube-nocookie.com/embed/${youtubeVideoId}?autoplay=0&rel=0`;
-    if (typeof window === "undefined") return baseUrl;
-    const origin = window.location.origin;
-    if (!/^https?:\/\//i.test(origin)) return baseUrl;
-    return `${baseUrl}&origin=${encodeURIComponent(origin)}`;
+    // enablejsapi=0 disables YouTube's postMessage API that requires valid origin matching
+    return `https://www.youtube-nocookie.com/embed/${youtubeVideoId}?autoplay=0&rel=0&enablejsapi=0`;
   }, [youtubeVideoId]);
 
   const xPostInfo = useMemo(() => {
@@ -271,6 +268,7 @@ export function PreviewModal({
                     className="w-full h-full"
                     allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
                     allowFullScreen
+                    referrerPolicy="no-referrer"
                   />
                 )}
 
