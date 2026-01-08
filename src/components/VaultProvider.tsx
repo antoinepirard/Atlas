@@ -44,7 +44,7 @@ export function VaultProvider({ children }: VaultProviderProps) {
   const [status, setStatus] = useState<VaultStatus>({
     exists: false,
     unlocked: false,
-    auto_lock_minutes: 15,
+    auto_lock_minutes: 30,
     biometrics_available: false,
     biometrics_enabled: false,
   });
@@ -139,7 +139,7 @@ export function VaultProvider({ children }: VaultProviderProps) {
       const inactiveMs = Date.now() - lastActivityRef.current;
       const timeoutMs = status.auto_lock_minutes * 60 * 1000;
 
-      if (inactiveMs >= timeoutMs) {
+      if (status.auto_lock_minutes > 0 && inactiveMs >= timeoutMs) {
         await lock();
       }
     }, 10000);

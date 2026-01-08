@@ -1,9 +1,9 @@
 import { useState, useEffect, useCallback } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
-import { 
-  XMarkIcon, 
-  EyeIcon, 
-  EyeSlashIcon, 
+import {
+  XMarkIcon,
+  EyeIcon,
+  EyeSlashIcon,
   FolderIcon,
   CheckIcon,
   ExclamationTriangleIcon,
@@ -17,6 +17,7 @@ import {
   ExclamationCircleIcon,
   PhotoIcon,
   MagnifyingGlassIcon,
+  LockClosedIcon,
 } from '@heroicons/react/24/outline';
 import * as tauri from '../lib/tauri';
 import { useVault } from './VaultProvider';
@@ -29,7 +30,7 @@ interface SettingsModalProps {
 type SettingsTab = 'general' | 'security' | 'access';
 
 export function SettingsModal({ isOpen, onClose }: SettingsModalProps) {
-  const { status, enableBiometrics, disableBiometrics } = useVault();
+  const { status, enableBiometrics, disableBiometrics, setAutoLockMinutes } = useVault();
   const [activeTab, setActiveTab] = useState<SettingsTab>('general');
   const [apiKey, setApiKey] = useState('');
   const [maskedApiKey, setMaskedApiKey] = useState<string | null>(null);
@@ -475,6 +476,39 @@ export function SettingsModal({ isOpen, onClose }: SettingsModalProps) {
 
                   {activeTab === 'security' && (
                     <div className="space-y-5">
+                      {/* Auto-lock */}
+                      <div className="space-y-1.5">
+                        <label className="block text-sm font-medium text-stone-700">
+                          Auto-lock
+                        </label>
+                        <div className="flex items-center justify-between p-3 bg-stone-50 border border-stone-200 rounded-xl">
+                          <div className="flex items-center gap-3">
+                            <div className="w-9 h-9 rounded-full bg-gradient-to-br from-stone-100 to-stone-200 flex items-center justify-center">
+                              <LockClosedIcon className="w-4 h-4 text-stone-600" />
+                            </div>
+                            <div>
+                              <p className="text-sm font-medium text-stone-700">
+                                Lock after inactivity
+                              </p>
+                              <p className="text-xs text-stone-500">
+                                Automatically lock your vault
+                              </p>
+                            </div>
+                          </div>
+                          <select
+                            value={status.auto_lock_minutes}
+                            onChange={(e) => setAutoLockMinutes(Number(e.target.value))}
+                            className="px-3 py-1.5 bg-white border border-stone-200 rounded-lg text-sm text-stone-700 focus:outline-none focus:ring-2 focus:ring-amber-400/50"
+                          >
+                            <option value={5}>5 minutes</option>
+                            <option value={15}>15 minutes</option>
+                            <option value={30}>30 minutes</option>
+                            <option value={60}>1 hour</option>
+                            <option value={0}>Never</option>
+                          </select>
+                        </div>
+                      </div>
+
                       {/* Touch ID */}
                       {status.biometrics_available && (
                         <div className="space-y-1.5">

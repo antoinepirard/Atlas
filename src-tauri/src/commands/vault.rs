@@ -13,6 +13,7 @@ const VERIFICATION_TOKEN: &str = "mymind-vault-ok";
 pub struct VaultState {
     pub db: Database,
     pub key: Mutex<Option<[u8; 32]>>,
+    pub ui_locked: Mutex<bool>,
     pub auto_lock_minutes: Mutex<i32>,
 }
 
@@ -20,31 +21,48 @@ impl VaultState {
     pub fn new() -> Result<Self, String> {
         let db_path = get_db_path();
         let db = Database::open(&db_path).map_err(|e| format!("Failed to open database: {}", e))?;
-        
+
         let auto_lock = db
             .get_vault_config()
             .ok()
             .flatten()
             .map(|c| c.auto_lock_minutes)
-            .unwrap_or(15);
-        
+            .unwrap_or(30);
+
         Ok(VaultState {
             db,
             key: Mutex::new(None),
+            ui_locked: Mutex::new(true),
             auto_lock_minutes: Mutex::new(auto_lock),
         })
     }
-    
+
     pub fn get_key(&self) -> Option<[u8; 32]> {
         *self.key.lock().unwrap()
     }
-    
+
     pub fn set_key(&self, key: Option<[u8; 32]>) {
         *self.key.lock().unwrap() = key;
     }
-    
+
+    /// Check if the UI is unlocked (user can view items)
     pub fn is_unlocked(&self) -> bool {
+        !*self.ui_locked.lock().unwrap() && self.key.lock().unwrap().is_some()
+    }
+
+    /// Check if the encryption key is available (for quick capture even when UI is locked)
+    pub fn has_key(&self) -> bool {
         self.key.lock().unwrap().is_some()
+    }
+
+    /// Lock the UI (but keep the encryption key for quick capture)
+    pub fn lock_ui(&self) {
+        *self.ui_locked.lock().unwrap() = true;
+    }
+
+    /// Unlock the UI
+    pub fn unlock_ui(&self) {
+        *self.ui_locked.lock().unwrap() = false;
     }
 }
 
@@ -106,14 +124,15 @@ pub fn create_vault(password: String, state: State<VaultState>) -> Result<Vec<St
         salt: crypto::bytes_to_base64(&salt),
         verification,
         recovery_encrypted,
-        auto_lock_minutes: 15,
+        auto_lock_minutes: 30,
     };
     
     state.db.save_vault_config(&config).map_err(|e| e.to_string())?;
-    
-    // Set the key in state
+
+    // Set the key in state and unlock UI
     state.set_key(Some(key));
-    
+    state.unlock_ui();
+
     Ok(recovery_phrase)
 }
 
@@ -137,6 +156,7 @@ pub fn unlock_vault(password: String, state: State<VaultState>) -> Result<bool, 
     match crypto::decrypt(&config.verification, &key) {
         Ok(decrypted) if decrypted == VERIFICATION_TOKEN => {
             state.set_key(Some(key));
+            state.unlock_ui();
             *state.auto_lock_minutes.lock().unwrap() = config.auto_lock_minutes;
             Ok(true)
         }
@@ -164,6 +184,7 @@ pub fn unlock_with_phrase(phrase: Vec<String>, state: State<VaultState>) -> Resu
     match crypto::decrypt(&config.verification, &key) {
         Ok(decrypted) if decrypted == VERIFICATION_TOKEN => {
             state.set_key(Some(key));
+            state.unlock_ui();
             *state.auto_lock_minutes.lock().unwrap() = config.auto_lock_minutes;
             Ok(true)
         }
@@ -171,10 +192,10 @@ pub fn unlock_with_phrase(phrase: Vec<String>, state: State<VaultState>) -> Resu
     }
 }
 
-/// Lock the vault
+/// Lock the vault UI (keeps encryption key for quick capture)
 #[tauri::command]
 pub fn lock_vault(state: State<VaultState>) -> Result<(), String> {
-    state.set_key(None);
+    state.lock_ui();
     Ok(())
 }
 
@@ -282,6 +303,7 @@ pub fn unlock_with_biometrics(state: State<VaultState>) -> Result<bool, String> 
     match crypto::decrypt(&config.verification, &key) {
         Ok(decrypted) if decrypted == VERIFICATION_TOKEN => {
             state.set_key(Some(key));
+            state.unlock_ui();
             *state.auto_lock_minutes.lock().unwrap() = config.auto_lock_minutes;
             Ok(true)
         }

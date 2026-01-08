@@ -47,6 +47,8 @@ const SUPPORTED_BROWSERS: &[(&str, &str)] = &[
     ("Chromium", "Chromium"),
     ("Opera", "Opera"),
     ("Vivaldi", "Vivaldi"),
+    ("Dia", "Dia"),
+    ("Dia Browser", "Dia Browser"),
 ];
 
 /// Execute an AppleScript and return the output
@@ -119,6 +121,22 @@ pub fn get_browser_url(browser_name: &str) -> Result<String, String> {
                 end tell
             "#, app_name)
         },
+        "dia" | "dia browser" => {
+            // Dia doesn't support standard AppleScript, use UI scripting to copy URL from address bar
+            r#"
+                tell application "System Events"
+                    tell process "Dia"
+                        keystroke "l" using command down
+                        delay 0.1
+                        keystroke "c" using command down
+                        delay 0.1
+                        key code 53 -- Escape to unfocus address bar
+                        delay 0.05
+                    end tell
+                end tell
+                return (the clipboard as text)
+            "#.to_string()
+        },
         "arc" => r#"
             tell application "Arc"
                 if (count of windows) > 0 then
@@ -165,6 +183,20 @@ pub fn get_browser_title(browser_name: &str) -> Result<String, String> {
                     end if
                 end tell
             "#, app_name)
+        },
+        "dia" | "dia browser" => {
+            // Dia doesn't support standard AppleScript, use System Events to get window title
+            r#"
+                tell application "System Events"
+                    tell process "Dia"
+                        if (count of windows) > 0 then
+                            return name of front window
+                        else
+                            return ""
+                        end if
+                    end tell
+                end tell
+            "#.to_string()
         },
         "arc" => r#"
             tell application "Arc"
@@ -412,6 +444,8 @@ mod tests {
         assert!(is_supported_browser("Safari"));
         assert!(is_supported_browser("Google Chrome"));
         assert!(is_supported_browser("Arc"));
+        assert!(is_supported_browser("Dia"));
+        assert!(is_supported_browser("Dia Browser"));
         assert!(!is_supported_browser("Finder"));
         assert!(!is_supported_browser("VSCode"));
     }
