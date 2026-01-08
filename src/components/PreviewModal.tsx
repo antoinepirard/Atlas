@@ -48,6 +48,9 @@ export function PreviewModal({
   // Reader mode state
   const [isReaderMode, setIsReaderMode] = useState(false);
 
+  // URL image error state
+  const [urlImageError, setUrlImageError] = useState(false);
+
   // Initialize edited content when item changes
   useEffect(() => {
     if (item?.type === "note") {
@@ -63,6 +66,11 @@ export function PreviewModal({
       setIsReaderMode(false);
     }
   }, [item?.id, item?.type, item?.is_article, item?.article_content]);
+
+  // Reset URL image error when item changes
+  useEffect(() => {
+    setUrlImageError(false);
+  }, [item?.id]);
 
   const hasChanges = item?.type === "note" && editedContent !== item.content;
 
@@ -297,11 +305,13 @@ export function PreviewModal({
                   !youtubeVideoId &&
                   !xPostInfo &&
                   !isReaderMode &&
-                  item.image_url && (
+                  item.image_url &&
+                  !urlImageError && (
                     <img
                       src={item.image_url}
                       alt={item.title || "Link preview"}
                       className="max-w-full max-h-full object-contain"
+                      onError={() => setUrlImageError(true)}
                     />
                   )}
 
@@ -309,7 +319,7 @@ export function PreviewModal({
                   !youtubeVideoId &&
                   !xPostInfo &&
                   !isReaderMode &&
-                  !item.image_url && (
+                  (!item.image_url || urlImageError) && (
                     <div className="flex flex-col items-center justify-center gap-4 p-8 text-stone-400">
                       <LinkIcon className="w-16 h-16" />
                       <span className="text-lg font-medium">
