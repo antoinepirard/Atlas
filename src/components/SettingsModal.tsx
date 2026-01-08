@@ -9,6 +9,7 @@ import {
   ExclamationTriangleIcon,
   FingerPrintIcon,
   Cog6ToothIcon,
+  CloudIcon,
   ShieldCheckIcon,
   KeyIcon,
   ArrowTopRightOnSquareIcon,
@@ -21,6 +22,7 @@ import {
   PlusIcon,
 } from '@heroicons/react/24/outline';
 import * as tauri from '../lib/tauri';
+import { BACKUP_INTERVAL_MINUTES, formatBackupInterval } from '../lib/backup';
 import { useVault } from './VaultProvider';
 
 interface SettingsModalProps {
@@ -28,7 +30,7 @@ interface SettingsModalProps {
   onClose: () => void;
 }
 
-type SettingsTab = 'general' | 'security' | 'access';
+type SettingsTab = 'general' | 'security' | 'cloud' | 'access';
 
 export function SettingsModal({ isOpen, onClose }: SettingsModalProps) {
   const {
@@ -39,6 +41,11 @@ export function SettingsModal({ isOpen, onClose }: SettingsModalProps) {
     switchVault,
     startNewVault,
     refreshStatus,
+    backupSettings,
+    refreshBackupSettings,
+    setBackupEnabled,
+    setBackupPath,
+    runBackup,
   } = useVault();
   const [activeTab, setActiveTab] = useState<SettingsTab>('general');
   const [apiKey, setApiKey] = useState('');
@@ -57,6 +64,9 @@ export function SettingsModal({ isOpen, onClose }: SettingsModalProps) {
   const [isReindexing, setIsReindexing] = useState(false);
   const [reindexResult, setReindexResult] = useState<{ indexed: number; skipped: number; failed: number } | null>(null);
   const [isTogglingBiometrics, setIsTogglingBiometrics] = useState(false);
+  const [isTogglingBackup, setIsTogglingBackup] = useState(false);
+  const [isSelectingBackupPath, setIsSelectingBackupPath] = useState(false);
+  const [isRunningBackup, setIsRunningBackup] = useState(false);
   const [apiKeySaved, setApiKeySaved] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [accessibilityGranted, setAccessibilityGranted] = useState<boolean | null>(null);
@@ -113,6 +123,7 @@ export function SettingsModal({ isOpen, onClose }: SettingsModalProps) {
       setApiKey('');
       setApiKeySaved(false);
       setError(null);
+      await refreshBackupSettings();
     } catch (err) {
       console.error('Failed to load settings:', err);
     }
@@ -292,11 +303,67 @@ export function SettingsModal({ isOpen, onClose }: SettingsModalProps) {
     }
   }, [status.biometrics_enabled, enableBiometrics, disableBiometrics]);
 
+  const handleToggleBackup = useCallback(async () => {
+    if (isTogglingBackup) return;
+    setIsTogglingBackup(true);
+    setError(null);
+    try {
+      await setBackupEnabled(!(backupSettings?.enabled ?? false));
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Failed to update backup setting');
+    } finally {
+      setIsTogglingBackup(false);
+    }
+  }, [isTogglingBackup, setBackupEnabled, backupSettings?.enabled]);
+
+  const handleChooseBackupFolder = useCallback(async () => {
+    if (isSelectingBackupPath) return;
+    setIsSelectingBackupPath(true);
+    setError(null);
+    try {
+      const selectedPath = await tauri.pickStorageFolder(
+        'Choose backup folder'
+      );
+      if (selectedPath) {
+        await setBackupPath(selectedPath);
+      }
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Failed to set backup folder');
+    } finally {
+      setIsSelectingBackupPath(false);
+    }
+  }, [isSelectingBackupPath, setBackupPath]);
+
+  const handleRunBackup = useCallback(async () => {
+    if (isRunningBackup) return;
+    setIsRunningBackup(true);
+    setError(null);
+    try {
+      await runBackup();
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Failed to run backup');
+    } finally {
+      setIsRunningBackup(false);
+    }
+  }, [isRunningBackup, runBackup]);
+
+  const formatBackupTimestamp = (value?: string | null) => {
+    if (!value) return 'Never';
+    const parsed = new Date(value);
+    if (Number.isNaN(parsed.getTime())) return value;
+    return parsed.toLocaleString();
+  };
+
   const tabs: { id: SettingsTab; label: string; icon: typeof Cog6ToothIcon }[] = [
     { id: 'general', label: 'General', icon: Cog6ToothIcon },
     { id: 'security', label: 'Security', icon: ShieldCheckIcon },
+    { id: 'cloud', label: 'Cloud', icon: CloudIcon },
     { id: 'access', label: 'Access', icon: KeyIcon },
   ];
+  const backupEnabled = backupSettings?.enabled ?? false;
+  const backupPath = backupSettings?.path ?? '';
+  const backupIntervalLabel = formatBackupInterval(BACKUP_INTERVAL_MINUTES);
+  const lastBackupLabel = formatBackupTimestamp(backupSettings?.last_backup_at);
   const vaultLabel = status.name?.trim();
   const displayVaultLabel = vaultLabel || 'Untitled Vault';
 
@@ -721,6 +788,184 @@ export function SettingsModal({ isOpen, onClose }: SettingsModalProps) {
                           </p>
                         </div>
                       )}
+                    </div>
+                  )}
+
+                  {activeTab === 'cloud' && (
+                    <div className="space-y-5">
+                      <div className="space-y-1.5">
+                        <label className="block text-sm font-medium text-stone-700">
+                          Backup Storage
+                        </label>
+                        <div className="flex items-center justify-between p-3 bg-stone-50 border border-stone-200 rounded-xl">
+                          <div className="flex items-center gap-3">
+                            <div className="w-9 h-9 rounded-full bg-sky-100 flex items-center justify-center flex-shrink-0">
+                              <CloudIcon className="w-4 h-4 text-sky-600" />
+                            </div>
+                            <div>
+                              <p className="text-sm font-medium text-stone-700">
+                                Enable backup storage
+                              </p>
+                              <p className="text-xs text-stone-500">
+                                Create encrypted snapshots in your selected folder.
+                              </p>
+                            </div>
+                          </div>
+                          <button
+                            onClick={handleToggleBackup}
+                            disabled={isTogglingBackup}
+                            className={`relative w-10 h-[22px] rounded-full transition-colors flex-shrink-0 ${
+                              backupEnabled ? 'bg-sky-500' : 'bg-stone-300'
+                            }`}
+                          >
+                            {isTogglingBackup ? (
+                              <span className="absolute inset-0 flex items-center justify-center">
+                                <span className="w-3 h-3 border-2 border-white/50 border-t-white rounded-full animate-spin" />
+                              </span>
+                            ) : (
+                              <span
+                                className={`absolute top-0.5 left-0.5 w-[18px] h-[18px] bg-white rounded-full shadow-sm transition-transform duration-200 ${
+                                  backupEnabled ? 'translate-x-[18px]' : 'translate-x-0'
+                                }`}
+                              />
+                            )}
+                          </button>
+                        </div>
+                        <p className="text-xs text-stone-400">
+                          Backups run every {backupIntervalLabel} while Atlas is open.
+                        </p>
+                      </div>
+
+                      <div className="space-y-1.5">
+                        <label className="block text-sm font-medium text-stone-700">
+                          Backup Folder
+                        </label>
+                        <div className="p-3 bg-stone-50 border border-stone-200 rounded-xl">
+                          <div className="flex items-center gap-2">
+                            <div
+                              className="flex-1 min-w-0 px-3 py-1.5 bg-white border border-stone-200 rounded-lg text-sm text-stone-600 truncate"
+                              title={backupPath}
+                            >
+                              {backupPath || 'No folder selected'}
+                            </div>
+                            <button
+                              onClick={handleChooseBackupFolder}
+                              disabled={isSelectingBackupPath}
+                              className="px-3 py-1.5 bg-stone-900 text-white rounded-lg text-sm font-medium hover:bg-stone-800 disabled:opacity-50 disabled:cursor-not-allowed transition-all flex items-center gap-1.5 flex-shrink-0"
+                            >
+                              {isSelectingBackupPath ? (
+                                <>
+                                  <span className="w-3.5 h-3.5 border-2 border-white/30 border-t-white rounded-full animate-spin" />
+                                  <span>Choosing...</span>
+                                </>
+                              ) : (
+                                <>
+                                  <FolderIcon className="w-4 h-4" />
+                                  <span>Choose Folder</span>
+                                </>
+                              )}
+                            </button>
+                          </div>
+                          <div className="mt-3 flex flex-wrap items-center justify-between gap-2">
+                            <p className="text-xs text-stone-500">
+                              Last backup: {lastBackupLabel}
+                            </p>
+                            <button
+                              onClick={handleRunBackup}
+                              disabled={!backupEnabled || !backupPath || isRunningBackup}
+                              className="px-3 py-1.5 bg-sky-600 text-white rounded-lg text-xs font-medium hover:bg-sky-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+                            >
+                              {isRunningBackup ? (
+                                <>
+                                  <span className="w-3.5 h-3.5 border-2 border-white/30 border-t-white rounded-full animate-spin inline-block align-middle" />
+                                  <span className="ml-1">Backing up...</span>
+                                </>
+                              ) : (
+                                'Backup now'
+                              )}
+                            </button>
+                          </div>
+                          {backupEnabled && !backupPath && (
+                            <div className="mt-3 flex items-center gap-2 p-2 bg-amber-50 border border-amber-200 rounded-lg text-amber-800 text-xs">
+                              <ExclamationTriangleIcon className="w-4 h-4 flex-shrink-0" />
+                              <span>Choose a backup folder to start saving snapshots.</span>
+                            </div>
+                          )}
+                        </div>
+                        <p className="text-xs text-stone-400">
+                          Snapshots are saved under Atlas Backups/YYYY-MM-DD_HH-MM-SS in this folder.
+                          Your provider just syncs the files.
+                        </p>
+                      </div>
+
+                      <div className="space-y-1.5">
+                        <label className="block text-sm font-medium text-stone-700">
+                          Supported Providers
+                        </label>
+                        <div className="p-3 bg-stone-50 border border-stone-200 rounded-xl">
+                          <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 text-sm">
+                            <a
+                              href="https://www.icloud.com/iclouddrive"
+                              target="_blank"
+                              rel="noopener noreferrer"
+                              className="flex items-center justify-between rounded-lg border border-stone-200 bg-white px-3 py-2 text-stone-700 hover:border-stone-300 hover:bg-stone-100 transition-colors"
+                            >
+                              <span>iCloud Drive</span>
+                              <ArrowTopRightOnSquareIcon className="w-4 h-4 text-stone-400" />
+                            </a>
+                            <a
+                              href="https://www.dropbox.com/install"
+                              target="_blank"
+                              rel="noopener noreferrer"
+                              className="flex items-center justify-between rounded-lg border border-stone-200 bg-white px-3 py-2 text-stone-700 hover:border-stone-300 hover:bg-stone-100 transition-colors"
+                            >
+                              <span>Dropbox</span>
+                              <ArrowTopRightOnSquareIcon className="w-4 h-4 text-stone-400" />
+                            </a>
+                            <a
+                              href="https://www.google.com/drive/download/"
+                              target="_blank"
+                              rel="noopener noreferrer"
+                              className="flex items-center justify-between rounded-lg border border-stone-200 bg-white px-3 py-2 text-stone-700 hover:border-stone-300 hover:bg-stone-100 transition-colors"
+                            >
+                              <span>Google Drive</span>
+                              <ArrowTopRightOnSquareIcon className="w-4 h-4 text-stone-400" />
+                            </a>
+                            <a
+                              href="https://www.microsoft.com/onedrive/download"
+                              target="_blank"
+                              rel="noopener noreferrer"
+                              className="flex items-center justify-between rounded-lg border border-stone-200 bg-white px-3 py-2 text-stone-700 hover:border-stone-300 hover:bg-stone-100 transition-colors"
+                            >
+                              <span>OneDrive</span>
+                              <ArrowTopRightOnSquareIcon className="w-4 h-4 text-stone-400" />
+                            </a>
+                          </div>
+                        </div>
+                        <p className="text-xs text-stone-400">
+                          Any provider that syncs a local folder works.
+                        </p>
+                      </div>
+
+                      <div className="space-y-1.5">
+                        <label className="block text-sm font-medium text-stone-700">
+                          Best Practices
+                        </label>
+                        <div className="space-y-2 text-xs text-stone-500">
+                          <div className="flex items-start gap-2">
+                            <span className="w-4 h-4 rounded-full bg-stone-200 flex items-center justify-center flex-shrink-0 text-stone-600 font-medium text-[10px]">1</span>
+                            <p>Use Open vault to restore from a backup snapshot folder.</p>
+                          </div>
+                          <div className="flex items-start gap-2">
+                            <span className="w-4 h-4 rounded-full bg-stone-200 flex items-center justify-center flex-shrink-0 text-stone-600 font-medium text-[10px]">2</span>
+                            <p>Let syncing finish before restoring or switching devices.</p>
+                          </div>
+                          <div className="flex items-start gap-2">
+                            <span className="w-4 h-4 rounded-full bg-stone-200 flex items-center justify-center flex-shrink-0 text-stone-600 font-medium text-[10px]">3</span>
+                            <p>Atlas stores encrypted data only; your provider sees ciphertext.</p>
+                          </div>
+                        </div>
+                      </div>
                     </div>
                   )}
 

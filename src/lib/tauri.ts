@@ -5,6 +5,7 @@ import type {
   Item,
   AddItemInput,
   VaultStatus,
+  BackupSettings,
   AIProcessResult,
   UrlMetadata,
   ItemType,
@@ -198,6 +199,24 @@ export async function setStoragePath(
   mode?: "move" | "switch" | "create"
 ): Promise<void> {
   return invoke("set_storage_path", { newPath, mode });
+}
+
+export async function getBackupSettings(): Promise<BackupSettings> {
+  return invoke("get_backup_settings");
+}
+
+export async function setBackupEnabled(enabled: boolean): Promise<BackupSettings> {
+  return invoke("set_backup_enabled", { enabled });
+}
+
+export async function setBackupPath(
+  path: string | null
+): Promise<BackupSettings> {
+  return invoke("set_backup_path", { path });
+}
+
+export async function runBackup(): Promise<BackupSettings> {
+  return invoke("run_backup");
 }
 
 export async function pickStorageFolder(

@@ -96,6 +96,15 @@ export function PreviewModal({
     return getYouTubeVideoId(item.content);
   }, [item]);
 
+  const youtubeEmbedUrl = useMemo(() => {
+    if (!youtubeVideoId) return null;
+    const baseUrl = `https://www.youtube-nocookie.com/embed/${youtubeVideoId}?autoplay=0&rel=0`;
+    if (typeof window === "undefined") return baseUrl;
+    const origin = window.location.origin;
+    if (!/^https?:\/\//i.test(origin)) return baseUrl;
+    return `${baseUrl}&origin=${encodeURIComponent(origin)}`;
+  }, [youtubeVideoId]);
+
   const xPostInfo = useMemo(() => {
     if (!item || item.type !== "url") return null;
     return getXPostInfo(item.content);
@@ -255,11 +264,9 @@ export function PreviewModal({
                   </>
                 )}
 
-                {item.type === "url" && youtubeVideoId && (
+                {item.type === "url" && youtubeVideoId && youtubeEmbedUrl && (
                   <iframe
-                    src={`https://www.youtube-nocookie.com/embed/${youtubeVideoId}?autoplay=0&rel=0&origin=${encodeURIComponent(
-                      window.location.origin
-                    )}`}
+                    src={youtubeEmbedUrl}
                     title={item.title || "YouTube video"}
                     className="w-full h-full"
                     allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"

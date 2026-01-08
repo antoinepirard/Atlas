@@ -53,6 +53,24 @@ pub struct VaultConfig {
     pub auto_lock_minutes: i32,
 }
 
+/// Backup settings stored outside the vault database
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct BackupSettings {
+    pub enabled: bool,
+    pub path: Option<String>,
+    pub last_backup_at: Option<String>,
+}
+
+impl Default for BackupSettings {
+    fn default() -> Self {
+        BackupSettings {
+            enabled: false,
+            path: None,
+            last_backup_at: None,
+        }
+    }
+}
+
 /// Database manager for the vault
 pub struct Database {
     conn: Mutex<Connection>,
@@ -198,6 +216,25 @@ impl Database {
         }
 
         self.initialize()
+    }
+
+    /// Backup the database to a new file using VACUUM INTO
+    pub fn backup_to(&self, path: &PathBuf) -> Result<(), String> {
+        if let Some(parent) = path.parent() {
+            fs::create_dir_all(parent)
+                .map_err(|e| format!("Failed to create backup directory: {}", e))?;
+        }
+
+        if path.exists() {
+            fs::remove_file(path)
+                .map_err(|e| format!("Failed to remove existing backup: {}", e))?;
+        }
+
+        let conn = self.conn.lock().unwrap();
+        let target = path.to_string_lossy().to_string();
+        conn.execute("VACUUM INTO ?1", [target])
+            .map_err(|e| format!("Failed to create backup: {}", e))?;
+        Ok(())
     }
     
     /// Update auto-lock minutes
@@ -454,24 +491,117 @@ impl Database {
     }
 }
 
-/// Get storage path preference from keychain
+/// Get storage path preference from keychain (with file fallback)
 pub fn get_storage_path_preference() -> Option<String> {
     if let Ok(entry) = keyring::Entry::new(get_app_dir_name(), "storage_path") {
         if let Ok(path) = entry.get_password() {
-            return Some(path);
+            let trimmed = path.trim().to_string();
+            if !trimmed.is_empty() {
+                return Some(trimmed);
+            }
         }
     }
-    None
+    read_storage_path_from_file()
 }
 
-/// Set storage path preference in keychain
+/// Set storage path preference in keychain (with file fallback)
 pub fn set_storage_path_preference(path: &str) -> Result<(), String> {
-    let entry = keyring::Entry::new(get_app_dir_name(), "storage_path")
-        .map_err(|e| format!("Failed to access keychain: {}", e))?;
+    let trimmed = path.trim();
+    if trimmed.is_empty() {
+        return Err("Storage path is empty".to_string());
+    }
 
-    entry.set_password(path)
+    let keychain_result = keyring::Entry::new(get_app_dir_name(), "storage_path")
+        .map_err(|e| format!("Failed to access keychain: {}", e))
+        .and_then(|entry| {
+            entry
+                .set_password(trimmed)
+                .map_err(|e| format!("Failed to save storage path: {}", e))
+        });
+
+    let file_result = save_storage_path_to_file(trimmed);
+
+    if keychain_result.is_ok() || file_result.is_ok() {
+        Ok(())
+    } else {
+        Err(format!(
+            "{}; fallback failed: {}",
+            keychain_result.unwrap_err(),
+            file_result.unwrap_err()
+        ))
+    }
+}
+
+const STORAGE_PATH_FILE: &str = ".storage_path";
+
+fn get_storage_path_file_path() -> Result<PathBuf, String> {
+    let app_dir = dirs::data_local_dir()
+        .ok_or_else(|| "Could not find app data directory".to_string())?
+        .join(get_app_dir_name());
+
+    fs::create_dir_all(&app_dir)
+        .map_err(|e| format!("Failed to create app directory: {}", e))?;
+
+    Ok(app_dir.join(STORAGE_PATH_FILE))
+}
+
+fn read_storage_path_from_file() -> Option<String> {
+    let path = get_storage_path_file_path().ok()?;
+    if !path.exists() {
+        return None;
+    }
+    let contents = fs::read_to_string(path).ok()?;
+    let trimmed = contents.trim().to_string();
+    if trimmed.is_empty() {
+        None
+    } else {
+        Some(trimmed)
+    }
+}
+
+const BACKUP_SETTINGS_FILE: &str = ".backup_settings.json";
+
+fn get_backup_settings_file_path() -> Result<PathBuf, String> {
+    let app_dir = dirs::data_local_dir()
+        .ok_or_else(|| "Could not find app data directory".to_string())?
+        .join(get_app_dir_name());
+
+    fs::create_dir_all(&app_dir)
+        .map_err(|e| format!("Failed to create app directory: {}", e))?;
+
+    Ok(app_dir.join(BACKUP_SETTINGS_FILE))
+}
+
+pub fn get_backup_settings() -> BackupSettings {
+    let path = match get_backup_settings_file_path() {
+        Ok(path) => path,
+        Err(_) => return BackupSettings::default(),
+    };
+    if !path.exists() {
+        return BackupSettings::default();
+    }
+
+    let contents = match fs::read_to_string(path) {
+        Ok(contents) => contents,
+        Err(_) => return BackupSettings::default(),
+    };
+
+    serde_json::from_str(&contents).unwrap_or_default()
+}
+
+pub fn save_backup_settings(settings: &BackupSettings) -> Result<(), String> {
+    let path = get_backup_settings_file_path()?;
+    let payload = serde_json::to_string_pretty(settings)
+        .map_err(|e| format!("Failed to serialize backup settings: {}", e))?;
+    fs::write(path, payload)
+        .map_err(|e| format!("Failed to save backup settings: {}", e))?;
+    Ok(())
+}
+
+fn save_storage_path_to_file(path: &str) -> Result<(), String> {
+    let file_path = get_storage_path_file_path()?;
+    fs::write(&file_path, path.trim())
         .map_err(|e| format!("Failed to save storage path: {}", e))?;
-
     Ok(())
 }
 

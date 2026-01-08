@@ -8,7 +8,8 @@ import {
   type ReactNode,
 } from "react";
 import * as tauri from "../lib/tauri";
-import type { VaultStatus } from "../types";
+import type { VaultStatus, BackupSettings } from "../types";
+import { BACKUP_INTERVAL_MINUTES } from "../lib/backup";
 
 interface VaultContextValue {
   status: VaultStatus;
@@ -27,6 +28,11 @@ interface VaultContextValue {
   resetVault: () => Promise<void>;
   switchVault: (path: string, mode: "move" | "switch" | "create") => Promise<void>;
   refreshStatus: () => Promise<void>;
+  backupSettings: BackupSettings | null;
+  refreshBackupSettings: () => Promise<void>;
+  setBackupEnabled: (enabled: boolean) => Promise<BackupSettings>;
+  setBackupPath: (path: string | null) => Promise<BackupSettings>;
+  runBackup: () => Promise<BackupSettings>;
 }
 
 const VaultContext = createContext<VaultContextValue | null>(null);
@@ -52,12 +58,17 @@ export function VaultProvider({ children }: VaultProviderProps) {
     biometrics_available: false,
     biometrics_enabled: false,
   });
+  const [backupSettings, setBackupSettings] = useState<BackupSettings | null>(
+    null
+  );
   const [isLoading, setIsLoading] = useState(true);
   const [isCreatingNew, setIsCreatingNew] = useState(false);
   const [wasManuallyLocked, setWasManuallyLocked] = useState(false);
   const [isWindowVisible, setIsWindowVisible] = useState(!document.hidden);
   const lastActivityRef = useRef<number>(Date.now());
   const autoLockTimerRef = useRef<number | null>(null);
+  const backupTimerRef = useRef<number | null>(null);
+  const backupInProgressRef = useRef(false);
 
   // Track window visibility to disable auto-lock when app is in background
   // This allows background saves to work without the vault auto-locking
@@ -87,10 +98,23 @@ export function VaultProvider({ children }: VaultProviderProps) {
     }
   }, []);
 
+  const refreshBackupSettings = useCallback(async () => {
+    try {
+      const settings = await tauri.getBackupSettings();
+      setBackupSettings(settings);
+    } catch (error) {
+      console.error("Failed to get backup settings:", error);
+    }
+  }, []);
+
   // Initial load
   useEffect(() => {
     refreshStatus().finally(() => setIsLoading(false));
   }, [refreshStatus]);
+
+  useEffect(() => {
+    refreshBackupSettings();
+  }, [refreshBackupSettings]);
 
   // Track user activity for auto-lock
   useEffect(() => {
@@ -228,6 +252,64 @@ export function VaultProvider({ children }: VaultProviderProps) {
     setStatus((prev) => ({ ...prev, auto_lock_minutes: minutes }));
   }, []);
 
+  const setBackupEnabled = useCallback(async (enabled: boolean) => {
+    const updated = await tauri.setBackupEnabled(enabled);
+    setBackupSettings(updated);
+    return updated;
+  }, []);
+
+  const setBackupPath = useCallback(async (path: string | null) => {
+    const updated = await tauri.setBackupPath(path);
+    setBackupSettings(updated);
+    return updated;
+  }, []);
+
+  const runBackup = useCallback(async () => {
+    if (backupInProgressRef.current) {
+      if (backupSettings) return backupSettings;
+      const current = await tauri.getBackupSettings();
+      setBackupSettings(current);
+      return current;
+    }
+
+    backupInProgressRef.current = true;
+    try {
+      const updated = await tauri.runBackup();
+      setBackupSettings(updated);
+      return updated;
+    } finally {
+      backupInProgressRef.current = false;
+    }
+  }, [backupSettings]);
+
+  useEffect(() => {
+    if (!backupSettings?.enabled || !backupSettings.path || !status.exists) {
+      if (backupTimerRef.current) {
+        clearInterval(backupTimerRef.current);
+        backupTimerRef.current = null;
+      }
+      return;
+    }
+
+    if (backupTimerRef.current) {
+      clearInterval(backupTimerRef.current);
+    }
+
+    backupTimerRef.current = window.setInterval(async () => {
+      try {
+        await runBackup();
+      } catch (error) {
+        console.error("Failed to run scheduled backup:", error);
+      }
+    }, BACKUP_INTERVAL_MINUTES * 60 * 1000);
+
+    return () => {
+      if (backupTimerRef.current) {
+        clearInterval(backupTimerRef.current);
+      }
+    };
+  }, [backupSettings?.enabled, backupSettings?.path, status.exists, runBackup]);
+
   const resetVault = useCallback(async () => {
     await tauri.resetVault();
     await refreshStatus();
@@ -263,6 +345,11 @@ export function VaultProvider({ children }: VaultProviderProps) {
         resetVault,
         switchVault,
         refreshStatus,
+        backupSettings,
+        refreshBackupSettings,
+        setBackupEnabled,
+        setBackupPath,
+        runBackup,
       }}
     >
       {children}

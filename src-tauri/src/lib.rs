@@ -499,6 +499,10 @@ pub fn run() {
             commands::reset_vault,
             commands::get_storage_path,
             commands::set_storage_path,
+            commands::get_backup_settings,
+            commands::set_backup_enabled,
+            commands::set_backup_path,
+            commands::run_backup,
             // Biometrics commands
             commands::is_biometrics_available,
             commands::is_biometrics_enabled,

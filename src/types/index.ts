@@ -80,6 +80,12 @@ export interface VaultStatus {
   biometrics_enabled: boolean;
 }
 
+export interface BackupSettings {
+  enabled: boolean;
+  path: string | null;
+  last_backup_at: string | null;
+}
+
 export interface AIProcessResult {
   tags: string[];
   summary: string;
