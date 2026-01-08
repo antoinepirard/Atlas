@@ -65,6 +65,7 @@ export function useAtlas() {
     deleteItem: operations.deleteItem,
     deleteItems: operations.deleteItems,
     updateItem: operations.updateItem,
+    enrichItems: operations.enrichItems,
 
     // Search handlers
     handleSearch: search.handleSearch,

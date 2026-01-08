@@ -217,14 +217,25 @@ pub fn update_item(item: Item, state: State<VaultState>) -> Result<Item, String>
     updated_item.updated_at = now.clone();
     sanitize_item_article_content(&mut updated_item);
 
+    // Update embedding index when provided
+    if let Some(ref embedding) = updated_item.embedding {
+        if !embedding.is_empty() {
+            state.db.save_embedding(&updated_item.id, embedding).ok();
+        }
+    }
+
+    // Don't store embedding in encrypted JSON
+    let mut storage_item = updated_item.clone();
+    storage_item.embedding = None;
+
     // Encrypt and save
-    let json = serde_json::to_string(&updated_item).map_err(|e| e.to_string())?;
+    let json = serde_json::to_string(&storage_item).map_err(|e| e.to_string())?;
     let encrypted_data = crypto::encrypt(&json, &key).map_err(|e| e.to_string())?;
 
     let encrypted_item = EncryptedItem {
-        id: updated_item.id.clone(),
+        id: storage_item.id.clone(),
         encrypted_data,
-        created_at: updated_item.created_at.clone(),
+        created_at: storage_item.created_at.clone(),
         updated_at: now,
     };
 
@@ -233,9 +244,19 @@ pub fn update_item(item: Item, state: State<VaultState>) -> Result<Item, String>
         .save_item(&encrypted_item)
         .map_err(|e| e.to_string())?;
 
+    // Update FTS index
+    let fts_entry = FtsEntry {
+        item_id: storage_item.id.clone(),
+        title: storage_item.title.clone().unwrap_or_default(),
+        description: storage_item.description.clone().unwrap_or_default(),
+        summary: storage_item.summary.clone().unwrap_or_default(),
+        tags: storage_item.tags.join(" "),
+    };
+    state.db.index_fts(&fts_entry).ok();
+
     // Don't return embedding to frontend
-    updated_item.embedding = None;
-    Ok(updated_item)
+    storage_item.embedding = None;
+    Ok(storage_item)
 }
 
 /// Delete an item

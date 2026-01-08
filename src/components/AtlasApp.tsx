@@ -35,6 +35,7 @@ export function AtlasApp() {
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
   const [isMultiSelectMode, setIsMultiSelectMode] = useState(false);
   const [isDeleting, setIsDeleting] = useState(false);
+  const [isEnriching, setIsEnriching] = useState(false);
 
   const {
     items,
@@ -50,6 +51,7 @@ export function AtlasApp() {
     deleteItem,
     deleteItems,
     updateItem,
+    enrichItems,
     handleSearch,
     handleFilterType,
     loadMore,
@@ -107,6 +109,11 @@ export function AtlasApp() {
     setSelectedIds(new Set());
   }, []);
 
+  const selectAll = useCallback(() => {
+    if (items.length === 0) return;
+    setSelectedIds(new Set(items.map((item) => item.id)));
+  }, [items]);
+
   const handleBulkDelete = useCallback(async () => {
     if (selectedIds.size === 0) return;
     setIsDeleting(true);
@@ -114,6 +121,27 @@ export function AtlasApp() {
     setSelectedIds(new Set());
     setIsDeleting(false);
   }, [selectedIds, deleteItems]);
+
+  const handleBulkEnrich = useCallback(async () => {
+    if (selectedIds.size === 0 || isEnriching) return;
+
+    if (selectedIds.size > 200) {
+      const confirmed = window.confirm(
+        `Enriching ${selectedIds.size} items may use a lot of AI credits. Continue?`
+      );
+      if (!confirmed) return;
+    }
+
+    const selectedItems = items.filter((item) => selectedIds.has(item.id));
+    if (selectedItems.length === 0) return;
+
+    setIsEnriching(true);
+    try {
+      await enrichItems(selectedItems);
+    } finally {
+      setIsEnriching(false);
+    }
+  }, [selectedIds, isEnriching, items, enrichItems]);
 
   // Track CMD key for multi-select mode
   useEffect(() => {
@@ -394,6 +422,13 @@ export function AtlasApp() {
         return;
       }
 
+      // ⌘+A to select all items
+      if ((e.metaKey || e.ctrlKey) && e.key.toLowerCase() === "a") {
+        e.preventDefault();
+        selectAll();
+        return;
+      }
+
       // ⌘+1/2/3/4 to filter by type
       if (e.metaKey || e.ctrlKey) {
         if (e.key === "1") {
@@ -414,7 +449,7 @@ export function AtlasApp() {
 
     window.addEventListener("keydown", handleKeyDown);
     return () => window.removeEventListener("keydown", handleKeyDown);
-  }, [handleFilterType]);
+  }, [handleFilterType, selectAll]);
 
   // Global paste handler
   useEffect(() => {
@@ -653,9 +688,11 @@ export function AtlasApp() {
 
       <SelectionActionBar
         selectedCount={selectedIds.size}
+        onEnrich={handleBulkEnrich}
         onDelete={handleBulkDelete}
         onClear={clearSelection}
         isDeleting={isDeleting}
+        isEnriching={isEnriching}
       />
     </div>
   );

@@ -20,6 +20,7 @@ export interface UseItemOperationsReturn {
   deleteItem: (itemId: string) => Promise<boolean>;
   deleteItems: (itemIds: string[]) => Promise<boolean>;
   updateItem: (updatedItem: Item) => Promise<Item | null>;
+  enrichItems: (items: Item[]) => Promise<{ updated: number; failed: number }>;
 }
 
 export function useItemOperations(
@@ -255,6 +256,138 @@ export function useItemOperations(
     [callbacks]
   );
 
+  const enrichItem = useCallback(
+    async (item: Item): Promise<Item | null> => {
+      try {
+        let title = item.title ?? undefined;
+        let description = item.description ?? undefined;
+        let imageUrl = item.image_url ?? undefined;
+        let author: string | undefined;
+        let articleContent = item.article_content ?? undefined;
+        let contentForAI = item.content;
+
+        if (item.type === "url") {
+          if (isXPostUrl(item.content)) {
+            const tweetData = await fetchTweetContent(item.content);
+            if (tweetData) {
+              title = `Tweet by ${tweetData.author}`;
+              description = tweetData.text;
+              contentForAI = tweetData.text;
+              author = tweetData.author;
+            }
+          }
+
+          try {
+            const metadata = await tauri.fetchUrlMetadata(item.content);
+            if (!title) title = metadata.title || undefined;
+            if (!description) description = metadata.description || undefined;
+            imageUrl = metadata.image || imageUrl;
+            if (!author && metadata.author) {
+              author = metadata.author;
+            }
+            if (metadata.article_content) {
+              articleContent = metadata.article_content;
+            }
+          } catch {
+            // Ignore metadata fetch errors and fall back to existing fields
+          }
+        } else if (item.type === "image") {
+          if (item.image_external) {
+            try {
+              contentForAI = await tauri.getFullImage(item.id);
+            } catch (err) {
+              console.warn("Failed to load full image for AI:", err);
+              contentForAI = item.image_url || item.content;
+            }
+          } else {
+            contentForAI = item.image_url || item.content;
+          }
+
+          if (!contentForAI || contentForAI.startsWith("external:")) {
+            throw new Error("Missing image data for AI");
+          }
+        }
+
+        const descriptionForAI =
+          item.type === "url"
+            ? author
+              ? `By: ${author}${description ? `. ${description}` : ""}`
+              : description
+            : undefined;
+
+        const aiResult = await tauri.processWithAI(
+          contentForAI,
+          item.type,
+          title,
+          descriptionForAI
+        );
+
+        if (aiResult.title && isGenericTitle(title)) {
+          title = aiResult.title;
+        }
+
+        let tags = aiResult.tags;
+        if (
+          author &&
+          !tags.some((t) =>
+            t.toLowerCase().includes(author.toLowerCase().split(" ")[0])
+          )
+        ) {
+          const authorTag = author
+            .toLowerCase()
+            .replace(/[^a-z0-9\s-]/g, "")
+            .trim();
+          if (authorTag && !tags.includes(authorTag)) {
+            tags = [...tags, authorTag];
+          }
+        }
+
+        const updatedItem: Item = {
+          ...item,
+          title: title ?? null,
+          description: description ?? null,
+          summary: aiResult.summary || null,
+          image_url: imageUrl ?? null,
+          tags,
+          embedding: aiResult.embedding,
+          article_content: articleContent ?? null,
+          is_article:
+            item.type === "url"
+              ? aiResult.is_article ?? item.is_article ?? false
+              : item.is_article,
+        };
+
+        const result = await tauri.updateItem(updatedItem);
+        callbacks.onItemUpdated(result);
+        return result;
+      } catch (err) {
+        console.warn("Failed to enrich item:", err);
+        setError(err instanceof Error ? err.message : "Failed to enrich item");
+        return null;
+      }
+    },
+    [callbacks, setError]
+  );
+
+  const enrichItems = useCallback(
+    async (items: Item[]): Promise<{ updated: number; failed: number }> => {
+      let updated = 0;
+      let failed = 0;
+
+      for (const item of items) {
+        const result = await enrichItem(item);
+        if (result) {
+          updated += 1;
+        } else {
+          failed += 1;
+        }
+      }
+
+      return { updated, failed };
+    },
+    [enrichItem]
+  );
+
   return {
     isLoading,
     error,
@@ -263,6 +396,6 @@ export function useItemOperations(
     deleteItem,
     deleteItems,
     updateItem,
+    enrichItems,
   };
 }
-
