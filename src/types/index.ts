@@ -86,6 +86,32 @@ export interface BackupSettings {
   last_backup_at: string | null;
 }
 
+export interface AiSettings {
+  /** Monthly budget limit in USD (null = no limit) */
+  monthly_budget_usd: number | null;
+  /** Warning threshold as decimal (0.8 = warn at 80% of budget) */
+  warning_threshold_percent: number;
+}
+
+export interface AiUsageDay {
+  date: string;
+  total_tokens: number;
+  prompt_tokens: number;
+  completion_tokens: number;
+  request_count: number;
+  /** Estimated cost in USD for this day */
+  total_cost_usd: number;
+}
+
+export interface AiBudgetStatus {
+  month: string;
+  spent_usd: number;
+  budget_usd: number | null;
+  warning_threshold_percent: number;
+  should_warn: boolean;
+  is_over_budget: boolean;
+}
+
 export interface AIProcessResult {
   tags: string[];
   summary: string;

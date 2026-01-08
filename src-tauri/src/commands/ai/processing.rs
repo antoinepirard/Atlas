@@ -3,6 +3,10 @@ use crate::commands::items::ItemType;
 
 use super::api_key::get_api_key;
 use super::types::{AIProcessResult, ChatCompletionResponse, EmbeddingResponse};
+use super::usage::{can_use_ai, record_ai_usage};
+
+// Max tokens for AI processing responses
+const PROCESSING_MAX_TOKENS: u32 = 512;
 
 /// Process content with AI to get tags, summary, and embedding
 #[tauri::command]
@@ -12,6 +16,9 @@ pub async fn process_with_ai(
     title: Option<String>,
     description: Option<String>,
 ) -> Result<AIProcessResult, String> {
+    // Check budget before making AI call
+    can_use_ai()?;
+    
     let api_key = get_api_key()?;
     let client = reqwest::Client::new();
     
@@ -75,6 +82,8 @@ Return ONLY valid JSON, no markdown."#,
         ),
     };
     
+    let max_tokens = PROCESSING_MAX_TOKENS;
+
     // Call OpenAI Chat API
     let chat_response = client
         .post("https://api.openai.com/v1/chat/completions")
@@ -88,7 +97,7 @@ Return ONLY valid JSON, no markdown."#,
                 }
             ],
             "temperature": 0.3,
-            "max_tokens": 400
+            "max_tokens": max_tokens
         }))
         .send()
         .await
@@ -103,7 +112,22 @@ Return ONLY valid JSON, no markdown."#,
         .json()
         .await
         .map_err(|e| format!("Failed to parse response: {}", e))?;
-    
+
+    if let Some(usage) = chat_result.usage {
+        let prompt_tokens = usage.prompt_tokens.unwrap_or(0);
+        let completion_tokens = usage.completion_tokens.unwrap_or(0);
+        let total_tokens = usage
+            .total_tokens
+            .unwrap_or(prompt_tokens + completion_tokens);
+        record_ai_usage(
+            "gpt-4o-mini",
+            "completion",
+            prompt_tokens,
+            completion_tokens,
+            total_tokens,
+        );
+    }
+
     let response_text = chat_result
         .choices
         .first()
@@ -120,7 +144,7 @@ Return ONLY valid JSON, no markdown."#,
         content.chars().take(1000).collect()
     };
 
-    let embedding = get_embedding(&client, &api_key, &embedding_input).await?;
+    let embedding = get_embedding(&client, &api_key, &embedding_input, "embedding").await?;
 
     Ok(AIProcessResult {
         tags,
@@ -136,7 +160,7 @@ Return ONLY valid JSON, no markdown."#,
 pub async fn get_search_embedding(query: String) -> Result<Vec<f32>, String> {
     let api_key = get_api_key()?;
     let client = reqwest::Client::new();
-    get_embedding(&client, &api_key, &query).await
+    get_embedding(&client, &api_key, &query, "search").await
 }
 
 /// Helper to get embedding from OpenAI
@@ -144,6 +168,7 @@ async fn get_embedding(
     client: &reqwest::Client,
     api_key: &str,
     input: &str,
+    operation: &str,
 ) -> Result<Vec<f32>, String> {
     let response = client
         .post("https://api.openai.com/v1/embeddings")
@@ -165,7 +190,19 @@ async fn get_embedding(
         .json()
         .await
         .map_err(|e| format!("Failed to parse embedding: {}", e))?;
-    
+
+    if let Some(usage) = result.usage {
+        let prompt_tokens = usage.prompt_tokens.unwrap_or(0);
+        let total_tokens = usage.total_tokens.unwrap_or(prompt_tokens);
+        record_ai_usage(
+            "text-embedding-3-small",
+            operation,
+            prompt_tokens,
+            0,
+            total_tokens,
+        );
+    }
+
     result
         .data
         .first()
@@ -209,4 +246,3 @@ fn parse_ai_response(text: &str) -> (Vec<String>, String, Option<String>, bool) 
         (vec![], String::new(), None, false)
     }
 }
-

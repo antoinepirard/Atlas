@@ -74,6 +74,20 @@ fn remove_key_file() {
     }
 }
 
+fn remove_key_from_keyring() {
+    let entry = match keyring_entry() {
+        Ok(entry) => entry,
+        Err(err) => {
+            eprintln!("{}", err);
+            return;
+        }
+    };
+
+    if let Err(err) = entry.delete_credential() {
+        eprintln!("Failed to remove API key from keychain: {}", err);
+    }
+}
+
 /// Get OpenAI API key from file or environment
 pub(super) fn get_api_key() -> Result<String, String> {
     // Try keychain first
@@ -136,4 +150,12 @@ pub fn get_api_key_masked() -> Option<String> {
         Ok(key) => Some(format!("...{}", key)),
         Err(_) => None,
     }
+}
+
+/// Remove stored OpenAI API key from keychain and disk
+#[tauri::command]
+pub fn remove_api_key() -> Result<(), String> {
+    remove_key_from_keyring();
+    remove_key_file();
+    Ok(())
 }

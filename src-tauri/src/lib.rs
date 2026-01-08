@@ -522,8 +522,13 @@ pub fn run() {
             commands::migrate_all_images,
             // AI commands
             commands::save_api_key,
+            commands::remove_api_key,
             commands::has_api_key,
             commands::get_api_key_masked,
+            commands::get_ai_settings,
+            commands::set_ai_settings,
+            commands::get_ai_usage_history,
+            commands::get_ai_budget_status,
             commands::process_with_ai,
             commands::get_search_embedding,
             commands::fetch_url_metadata,

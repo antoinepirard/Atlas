@@ -1,5 +1,9 @@
 use super::api_key::get_api_key;
 use super::types::{ChatCompletionResponse, TokenClassification};
+use super::usage::{can_use_ai, record_ai_usage};
+
+// Max tokens for classification responses (kept small for efficiency)
+const CLASSIFICATION_MAX_TOKENS: u32 = 300;
 
 /// Classify search tokens using AI
 /// Called for tokens that don't match deterministic rules
@@ -11,6 +15,9 @@ pub async fn classify_search_tokens(
     if tokens.is_empty() {
         return Ok(vec![]);
     }
+    
+    // Check budget before making AI call
+    can_use_ai()?;
     
     let api_key = get_api_key()?;
     let client = reqwest::Client::new();
@@ -43,6 +50,8 @@ Only classify as a filter if confidence >= 0.7. Return ONLY valid JSON array."#,
         tags_context
     );
     
+    let max_tokens = CLASSIFICATION_MAX_TOKENS;
+
     let response = client
         .post("https://api.openai.com/v1/chat/completions")
         .header("Authorization", format!("Bearer {}", api_key))
@@ -55,7 +64,7 @@ Only classify as a filter if confidence >= 0.7. Return ONLY valid JSON array."#,
                 }
             ],
             "temperature": 0.1,
-            "max_tokens": 300
+            "max_tokens": max_tokens
         }))
         .send()
         .await
@@ -70,6 +79,21 @@ Only classify as a filter if confidence >= 0.7. Return ONLY valid JSON array."#,
         .json()
         .await
         .map_err(|e| format!("Failed to parse response: {}", e))?;
+
+    if let Some(usage) = result.usage {
+        let prompt_tokens = usage.prompt_tokens.unwrap_or(0);
+        let completion_tokens = usage.completion_tokens.unwrap_or(0);
+        let total_tokens = usage
+            .total_tokens
+            .unwrap_or(prompt_tokens + completion_tokens);
+        record_ai_usage(
+            "gpt-4o-mini",
+            "classification",
+            prompt_tokens,
+            completion_tokens,
+            total_tokens,
+        );
+    }
     
     let response_text = result
         .choices
@@ -107,4 +131,3 @@ fn parse_classification_response(text: &str, original_tokens: &[String]) -> Resu
         }
     }
 }
-

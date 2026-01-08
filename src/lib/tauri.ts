@@ -13,6 +13,9 @@ import type {
   ItemsPage,
   SearchResponse,
   ReindexResult,
+  AiSettings,
+  AiUsageDay,
+  AiBudgetStatus,
 } from "../types";
 
 // Vault commands
@@ -118,6 +121,10 @@ export async function saveApiKey(apiKey: string): Promise<void> {
   return invoke("save_api_key", { apiKey });
 }
 
+export async function removeApiKey(): Promise<void> {
+  return invoke("remove_api_key");
+}
+
 export async function hasApiKey(): Promise<boolean> {
   return invoke("has_api_key");
 }
@@ -138,6 +145,22 @@ export async function processWithAI(
 
 export async function getSearchEmbedding(query: string): Promise<number[]> {
   return invoke("get_search_embedding", { query });
+}
+
+export async function getAiSettings(): Promise<AiSettings> {
+  return invoke("get_ai_settings");
+}
+
+export async function setAiSettings(settings: AiSettings): Promise<AiSettings> {
+  return invoke("set_ai_settings", { settings });
+}
+
+export async function getAiUsageHistory(days: number): Promise<AiUsageDay[]> {
+  return invoke("get_ai_usage_history", { days });
+}
+
+export async function getAiBudgetStatus(): Promise<AiBudgetStatus> {
+  return invoke("get_ai_budget_status");
 }
 
 export interface TokenClassification {
