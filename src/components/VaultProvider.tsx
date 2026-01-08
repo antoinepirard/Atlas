@@ -14,7 +14,9 @@ interface VaultContextValue {
   status: VaultStatus;
   isLoading: boolean;
   wasManuallyLocked: boolean;
-  createVault: (password: string) => Promise<string[]>;
+  isCreatingNew: boolean;
+  startNewVault: () => void;
+  createVault: (password: string, name?: string) => Promise<string[]>;
   unlock: (password: string) => Promise<boolean>;
   unlockWithPhrase: (phrase: string[]) => Promise<boolean>;
   unlockWithBiometrics: () => Promise<boolean>;
@@ -23,6 +25,7 @@ interface VaultContextValue {
   lock: () => Promise<void>;
   setAutoLockMinutes: (minutes: number) => Promise<void>;
   resetVault: () => Promise<void>;
+  switchVault: (path: string, mode: "move" | "switch" | "create") => Promise<void>;
   refreshStatus: () => Promise<void>;
 }
 
@@ -44,11 +47,13 @@ export function VaultProvider({ children }: VaultProviderProps) {
   const [status, setStatus] = useState<VaultStatus>({
     exists: false,
     unlocked: false,
+    name: null,
     auto_lock_minutes: 30,
     biometrics_available: false,
     biometrics_enabled: false,
   });
   const [isLoading, setIsLoading] = useState(true);
+  const [isCreatingNew, setIsCreatingNew] = useState(false);
   const [wasManuallyLocked, setWasManuallyLocked] = useState(false);
   const [isWindowVisible, setIsWindowVisible] = useState(!document.hidden);
   const lastActivityRef = useRef<number>(Date.now());
@@ -152,14 +157,19 @@ export function VaultProvider({ children }: VaultProviderProps) {
   }, [status.unlocked, status.auto_lock_minutes, isWindowVisible]);
 
   const createVault = useCallback(
-    async (password: string): Promise<string[]> => {
-      const recoveryPhrase = await tauri.createVault(password);
+    async (password: string, name?: string): Promise<string[]> => {
+      const recoveryPhrase = await tauri.createVault(password, name);
       await refreshStatus();
+      setIsCreatingNew(false);
       lastActivityRef.current = Date.now();
       return recoveryPhrase;
     },
     [refreshStatus]
   );
+
+  const startNewVault = useCallback(() => {
+    setIsCreatingNew(true);
+  }, []);
 
   const unlock = useCallback(
     async (password: string): Promise<boolean> => {
@@ -223,12 +233,25 @@ export function VaultProvider({ children }: VaultProviderProps) {
     await refreshStatus();
   }, [refreshStatus]);
 
+  const switchVault = useCallback(
+    async (path: string, mode: "move" | "switch" | "create") => {
+      await tauri.setStoragePath(path, mode);
+      setWasManuallyLocked(false);
+      await refreshStatus();
+      setIsCreatingNew(false);
+      lastActivityRef.current = Date.now();
+    },
+    [refreshStatus]
+  );
+
   return (
     <VaultContext.Provider
       value={{
         status,
         isLoading,
         wasManuallyLocked,
+        isCreatingNew,
+        startNewVault,
         createVault,
         unlock,
         unlockWithPhrase,
@@ -238,6 +261,7 @@ export function VaultProvider({ children }: VaultProviderProps) {
         lock,
         setAutoLockMinutes,
         resetVault,
+        switchVault,
         refreshStatus,
       }}
     >

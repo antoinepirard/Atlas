@@ -18,6 +18,7 @@ import {
   PhotoIcon,
   MagnifyingGlassIcon,
   LockClosedIcon,
+  PlusIcon,
 } from '@heroicons/react/24/outline';
 import * as tauri from '../lib/tauri';
 import { useVault } from './VaultProvider';
@@ -30,7 +31,14 @@ interface SettingsModalProps {
 type SettingsTab = 'general' | 'security' | 'access';
 
 export function SettingsModal({ isOpen, onClose }: SettingsModalProps) {
-  const { status, enableBiometrics, disableBiometrics, setAutoLockMinutes } = useVault();
+  const {
+    status,
+    enableBiometrics,
+    disableBiometrics,
+    setAutoLockMinutes,
+    switchVault,
+    startNewVault,
+  } = useVault();
   const [activeTab, setActiveTab] = useState<SettingsTab>('general');
   const [apiKey, setApiKey] = useState('');
   const [maskedApiKey, setMaskedApiKey] = useState<string | null>(null);
@@ -38,6 +46,7 @@ export function SettingsModal({ isOpen, onClose }: SettingsModalProps) {
   const [storagePath, setStoragePath] = useState('');
   const [isSavingApiKey, setIsSavingApiKey] = useState(false);
   const [isMigrating, setIsMigrating] = useState(false);
+  const [isSwitchingVault, setIsSwitchingVault] = useState(false);
   const [isMigratingImages, setIsMigratingImages] = useState(false);
   const [migrationResult, setMigrationResult] = useState<{ migrated: number; failed: number; skipped: number } | null>(null);
   const [isReindexing, setIsReindexing] = useState(false);
@@ -54,6 +63,25 @@ export function SettingsModal({ isOpen, onClose }: SettingsModalProps) {
       loadSettings();
       checkAccessibility();
     }
+  }, [isOpen]);
+
+  useEffect(() => {
+    if (!isOpen) return;
+
+    const previousOverflow = document.body.style.overflow;
+    const previousPaddingRight = document.body.style.paddingRight;
+    const scrollbarWidth =
+      window.innerWidth - document.documentElement.clientWidth;
+
+    document.body.style.overflow = 'hidden';
+    if (scrollbarWidth > 0) {
+      document.body.style.paddingRight = `${scrollbarWidth}px`;
+    }
+
+    return () => {
+      document.body.style.overflow = previousOverflow;
+      document.body.style.paddingRight = previousPaddingRight;
+    };
   }, [isOpen]);
 
   const loadSettings = async () => {
@@ -125,19 +153,43 @@ export function SettingsModal({ isOpen, onClose }: SettingsModalProps) {
 
   const handleBrowseFolder = useCallback(async () => {
     try {
-      const selectedPath = await tauri.pickStorageFolder();
+      const selectedPath = await tauri.pickStorageFolder(
+        'Choose new storage location'
+      );
       if (selectedPath) {
         setIsMigrating(true);
         setError(null);
-        await tauri.setStoragePath(selectedPath);
-        setStoragePath(selectedPath + '/vault.db');
+        await switchVault(selectedPath, 'move');
+        const updatedPath = await tauri.getStoragePath();
+        setStoragePath(updatedPath);
         setIsMigrating(false);
       }
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Failed to change storage location');
       setIsMigrating(false);
     }
-  }, []);
+  }, [switchVault]);
+
+  const handleOpenExistingVault = useCallback(async () => {
+    try {
+      const selectedPath = await tauri.pickStorageFolder(
+        'Choose existing vault folder'
+      );
+      if (!selectedPath) return;
+      setIsSwitchingVault(true);
+      setError(null);
+      await switchVault(selectedPath, 'switch');
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Failed to switch vault');
+    } finally {
+      setIsSwitchingVault(false);
+    }
+  }, [switchVault]);
+
+  const handleStartNewVault = useCallback(() => {
+    startNewVault();
+    onClose();
+  }, [startNewVault, onClose]);
 
   const handleMigrateImages = useCallback(async () => {
     setIsMigratingImages(true);
@@ -215,7 +267,7 @@ export function SettingsModal({ isOpen, onClose }: SettingsModalProps) {
             className="fixed inset-0 z-50 flex items-center justify-center p-4 pointer-events-none"
             onKeyDown={handleKeyDown}
           >
-            <div className="bg-white rounded-2xl shadow-2xl shadow-stone-900/10 overflow-hidden w-full max-w-2xl pointer-events-auto flex">
+            <div className="bg-white rounded-2xl shadow-2xl shadow-stone-900/10 overflow-hidden w-full max-w-2xl h-[600px] max-h-[calc(100vh-2rem)] pointer-events-auto flex">
               {/* Sidebar */}
               <div className="w-44 flex-shrink-0 bg-stone-50 border-r border-stone-200 flex flex-col">
                 <div className="px-4 py-5 border-b border-stone-200">
@@ -243,10 +295,35 @@ export function SettingsModal({ isOpen, onClose }: SettingsModalProps) {
                     );
                   })}
                 </nav>
+                <div className="px-3 pb-3 pt-2">
+                  <div className="flex flex-col gap-1">
+                    <button
+                      onClick={handleStartNewVault}
+                      className="flex items-center gap-2 rounded-lg px-3 py-2 text-sm text-stone-600 hover:text-stone-800 hover:bg-stone-100 transition-colors"
+                      title="Create new vault"
+                    >
+                      <PlusIcon className="w-4 h-4" />
+                      <span>New vault</span>
+                    </button>
+                    <button
+                      onClick={handleOpenExistingVault}
+                      disabled={isSwitchingVault}
+                      className="flex items-center gap-2 rounded-lg px-3 py-2 text-sm text-stone-600 hover:text-stone-800 hover:bg-stone-100 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+                      title="Open existing vault"
+                    >
+                      {isSwitchingVault ? (
+                        <span className="w-4 h-4 border-2 border-stone-300 border-t-stone-600 rounded-full animate-spin" />
+                      ) : (
+                        <FolderIcon className="w-4 h-4" />
+                      )}
+                      <span>Open vault</span>
+                    </button>
+                  </div>
+                </div>
               </div>
 
               {/* Content */}
-              <div className="flex-1 flex flex-col min-h-[420px] min-w-0">
+              <div className="flex-1 flex flex-col min-h-0 min-w-0">
                 {/* Header */}
                 <div className="flex items-center justify-between px-5 py-4 border-b border-stone-100">
                   <h3 className="text-sm font-medium text-stone-500">
@@ -261,7 +338,7 @@ export function SettingsModal({ isOpen, onClose }: SettingsModalProps) {
                 </div>
 
                 {/* Tab Content */}
-                <div className="flex-1 overflow-y-auto px-5 py-4">
+                <div className="flex-1 overflow-y-auto overscroll-contain px-5 py-4 modal-scrollable">
                   {/* Error message */}
                   {error && (
                     <div className="flex items-center gap-2 p-3 bg-red-50 border border-red-100 rounded-lg text-red-700 text-sm mb-4">

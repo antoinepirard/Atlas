@@ -233,13 +233,19 @@ interface VaultStatus {
 
 ## Data Storage
 
-Default vault location:
+Vault locations (separated for dev/prod isolation):
 
 ```
+# Production build
 ~/Library/Application Support/com.antoinepirard.atlas/vault.db
+
+# Development build (pnpm tauri dev)
+~/Library/Application Support/com.antoinepirard.atlas-dev/vault.db
 ```
 
 The SQLite database stores encrypted item data. The encryption key is derived from the user's password and never stored.
+
+Note: On first run, data is automatically migrated from the legacy `mymind/` directory if it exists.
 
 ## Configuration Files
 

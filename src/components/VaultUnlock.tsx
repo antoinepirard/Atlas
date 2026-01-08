@@ -209,6 +209,7 @@ export function VaultUnlock() {
   const [error, setError] = useState("");
   const [attempts, setAttempts] = useState(0);
   const inputRef = useRef<HTMLInputElement>(null);
+  const vaultLabel = status.name?.trim();
 
   // Don't auto-trigger - let user explicitly click the Touch ID button
   // This avoids confusion with double prompts
@@ -295,11 +296,14 @@ export function VaultUnlock() {
                   fontStyle: "italic",
                 }}
               >
-                Unlock your mind
+                Unlock {vaultLabel ? vaultLabel : "your mind"}
               </h1>
               <p className="text-sm text-stone-500">
                 Enter your password to access your saved thoughts
               </p>
+              {vaultLabel && (
+                <p className="text-xs text-stone-400">Vault: {vaultLabel}</p>
+              )}
             </div>
 
             <div className="space-y-2">

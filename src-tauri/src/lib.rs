@@ -194,6 +194,9 @@ pub fn run() {
                                         ) {
                                             Ok(_) => {
                                                 set_tray_status(&app_handle, "✓ Saved").await;
+                                                if let Some(window) = app_handle.get_webview_window("main") {
+                                                    let _ = window.emit("items-updated", ());
+                                                }
                                             }
                                             Err(e) => {
                                                 eprintln!("Background save failed: {}", e);
@@ -265,6 +268,9 @@ pub fn run() {
                                         ) {
                                             Ok(_) => {
                                                 set_tray_status(&app_handle, "✓ Saved").await;
+                                                if let Some(window) = app_handle.get_webview_window("main") {
+                                                    let _ = window.emit("items-updated", ());
+                                                }
                                             }
                                             Err(e) => {
                                                 eprintln!("Quick capture failed: {}", e);
@@ -442,4 +448,3 @@ pub fn run() {
         .run(tauri::generate_context!())
         .expect("error while running tauri application");
 }
-

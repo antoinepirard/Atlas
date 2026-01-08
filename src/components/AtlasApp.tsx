@@ -1,4 +1,4 @@
-import { useState, useCallback, useEffect } from "react";
+import { useState, useCallback, useEffect, useRef } from "react";
 import { motion, AnimatePresence } from "motion/react";
 import {
   PlusIcon,
@@ -52,7 +52,38 @@ export function AtlasApp() {
     handleSearch,
     handleFilterType,
     loadMore,
+    refresh,
   } = useAtlas();
+
+  const pendingRefreshRef = useRef(false);
+
+  useEffect(() => {
+    const unlisten = listen("items-updated", () => {
+      if (document.hidden) {
+        pendingRefreshRef.current = true;
+        return;
+      }
+      refresh();
+    });
+
+    return () => {
+      unlisten.then((fn) => fn());
+    };
+  }, [refresh]);
+
+  useEffect(() => {
+    const handleVisibilityChange = () => {
+      if (!document.hidden && pendingRefreshRef.current) {
+        pendingRefreshRef.current = false;
+        refresh();
+      }
+    };
+
+    document.addEventListener("visibilitychange", handleVisibilityChange);
+    return () => {
+      document.removeEventListener("visibilitychange", handleVisibilityChange);
+    };
+  }, [refresh]);
 
   // Multi-select handlers
   const handleSelect = useCallback((id: string) => {
@@ -575,4 +606,3 @@ export function AtlasApp() {
     </div>
   );
 }
-

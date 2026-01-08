@@ -1,11 +1,13 @@
 use std::fs;
 use std::path::PathBuf;
 
+use crate::db::get_app_dir_name;
+
 /// Get the path for storing the API key
 fn get_api_key_path() -> Result<PathBuf, String> {
     let app_dir = dirs::data_local_dir()
         .ok_or_else(|| "Could not find app data directory".to_string())?
-        .join("mymind");
+        .join(get_app_dir_name());
     
     // Ensure directory exists
     fs::create_dir_all(&app_dir)

@@ -74,6 +74,7 @@ export interface SearchResult extends Item {
 export interface VaultStatus {
   exists: boolean;
   unlocked: boolean;
+  name?: string | null;
   auto_lock_minutes: number;
   biometrics_available: boolean;
   biometrics_enabled: boolean;
@@ -151,4 +152,3 @@ export interface ParsedQuery {
   /** Original raw query */
   rawQuery: string;
 }
-

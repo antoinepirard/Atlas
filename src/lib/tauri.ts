@@ -19,8 +19,11 @@ export async function getVaultStatus(): Promise<VaultStatus> {
   return invoke("get_vault_status");
 }
 
-export async function createVault(password: string): Promise<string[]> {
-  return invoke("create_vault", { password });
+export async function createVault(
+  password: string,
+  name?: string
+): Promise<string[]> {
+  return invoke("create_vault", { password, name });
 }
 
 export async function unlockVault(password: string): Promise<boolean> {
@@ -186,15 +189,20 @@ export async function getStoragePath(): Promise<string> {
   return invoke("get_storage_path");
 }
 
-export async function setStoragePath(newPath: string): Promise<void> {
-  return invoke("set_storage_path", { newPath });
+export async function setStoragePath(
+  newPath: string,
+  mode?: "move" | "switch" | "create"
+): Promise<void> {
+  return invoke("set_storage_path", { newPath, mode });
 }
 
-export async function pickStorageFolder(): Promise<string | null> {
+export async function pickStorageFolder(
+  title = "Choose storage location"
+): Promise<string | null> {
   const result = await open({
     directory: true,
     multiple: false,
-    title: "Choose storage location",
+    title,
   });
   return result as string | null;
 }

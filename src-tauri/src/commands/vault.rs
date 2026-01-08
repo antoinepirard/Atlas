@@ -70,6 +70,7 @@ impl VaultState {
 pub struct VaultStatus {
     pub exists: bool,
     pub unlocked: bool,
+    pub name: Option<String>,
     pub auto_lock_minutes: i32,
     pub biometrics_available: bool,
     pub biometrics_enabled: bool,
@@ -81,12 +82,23 @@ pub fn get_vault_status(state: State<VaultState>) -> Result<VaultStatus, String>
     let exists = state.db.vault_exists().map_err(|e| e.to_string())?;
     let unlocked = state.is_unlocked();
     let auto_lock_minutes = *state.auto_lock_minutes.lock().unwrap();
+    let name = if exists {
+        state
+            .db
+            .get_vault_config()
+            .ok()
+            .flatten()
+            .and_then(|config| config.name)
+    } else {
+        None
+    };
     let biometrics_available = biometrics::is_available();
     let biometrics_enabled = biometrics::is_enabled();
     
     Ok(VaultStatus {
         exists,
         unlocked,
+        name,
         auto_lock_minutes,
         biometrics_available,
         biometrics_enabled,
@@ -96,7 +108,11 @@ pub fn get_vault_status(state: State<VaultState>) -> Result<VaultStatus, String>
 /// Create a new vault with password
 /// Returns the recovery phrase
 #[tauri::command]
-pub fn create_vault(password: String, state: State<VaultState>) -> Result<Vec<String>, String> {
+pub fn create_vault(
+    password: String,
+    name: Option<String>,
+    state: State<VaultState>,
+) -> Result<Vec<String>, String> {
     // Check if vault already exists
     if state.db.vault_exists().map_err(|e| e.to_string())? {
         return Err("Vault already exists".to_string());
@@ -120,7 +136,17 @@ pub fn create_vault(password: String, state: State<VaultState>) -> Result<Vec<St
         .map_err(|e| format!("Failed to encrypt recovery phrase: {}", e))?;
     
     // Save vault config
+    let name = name.and_then(|value| {
+        let trimmed = value.trim().to_string();
+        if trimmed.is_empty() {
+            None
+        } else {
+            Some(trimmed)
+        }
+    });
+
     let config = VaultConfig {
+        name,
         salt: crypto::bytes_to_base64(&salt),
         verification,
         recovery_encrypted,
@@ -221,9 +247,37 @@ pub fn get_storage_path() -> String {
     get_db_path().to_string_lossy().to_string()
 }
 
-/// Set storage path and migrate data
+#[derive(Debug, Deserialize)]
+#[serde(rename_all = "snake_case")]
+pub enum StoragePathMode {
+    Move,
+    Switch,
+    Create,
+}
+
+fn sync_state_after_db_change(state: &VaultState, lock_ui: bool) {
+    if lock_ui {
+        state.set_key(None);
+        state.lock_ui();
+    }
+
+    let auto_lock = state
+        .db
+        .get_vault_config()
+        .ok()
+        .flatten()
+        .map(|config| config.auto_lock_minutes)
+        .unwrap_or(30);
+    *state.auto_lock_minutes.lock().unwrap() = auto_lock;
+}
+
+/// Set storage path and optionally move or switch vaults
 #[tauri::command]
-pub fn set_storage_path(new_path: String, _state: State<VaultState>) -> Result<(), String> {
+pub fn set_storage_path(
+    new_path: String,
+    mode: Option<StoragePathMode>,
+    state: State<VaultState>,
+) -> Result<(), String> {
     let current_path = get_db_path();
     let new_db_path = PathBuf::from(&new_path).join("vault.db");
     
@@ -231,29 +285,85 @@ pub fn set_storage_path(new_path: String, _state: State<VaultState>) -> Result<(
     if current_path == new_db_path {
         return Ok(());
     }
-    
-    // Ensure target directory exists
-    if let Some(parent) = new_db_path.parent() {
-        std::fs::create_dir_all(parent)
-            .map_err(|e| format!("Failed to create directory: {}", e))?;
+
+    let mode = mode.unwrap_or(StoragePathMode::Move);
+
+    match mode {
+        StoragePathMode::Move => {
+            if new_db_path.exists() {
+                return Err("Destination already contains a vault database.".to_string());
+            }
+
+            if let Some(parent) = new_db_path.parent() {
+                std::fs::create_dir_all(parent)
+                    .map_err(|e| format!("Failed to create directory: {}", e))?;
+            }
+
+            if current_path.exists() {
+                std::fs::copy(&current_path, &new_db_path)
+                    .map_err(|e| format!("Failed to copy vault: {}", e))?;
+            }
+
+            set_storage_path_preference(&new_path)
+                .map_err(|e| format!("Failed to save path preference: {}", e))?;
+
+            state
+                .db
+                .reopen(&new_db_path)
+                .map_err(|e| format!("Failed to open vault: {}", e))?;
+            sync_state_after_db_change(&state, false);
+        }
+        StoragePathMode::Switch => {
+            if !new_db_path.exists() {
+                return Err("No vault found at the selected location.".to_string());
+            }
+
+            let candidate = Database::open(&new_db_path)
+                .map_err(|e| format!("Failed to open vault: {}", e))?;
+            let exists = candidate
+                .vault_exists()
+                .map_err(|e| format!("Failed to read vault: {}", e))?;
+            if !exists {
+                return Err("No vault found at the selected location.".to_string());
+            }
+
+            set_storage_path_preference(&new_path)
+                .map_err(|e| format!("Failed to save path preference: {}", e))?;
+
+            state
+                .db
+                .reopen(&new_db_path)
+                .map_err(|e| format!("Failed to open vault: {}", e))?;
+            sync_state_after_db_change(&state, true);
+        }
+        StoragePathMode::Create => {
+            if new_db_path.exists() {
+                let candidate = Database::open(&new_db_path)
+                    .map_err(|e| format!("Failed to open vault: {}", e))?;
+                let exists = candidate
+                    .vault_exists()
+                    .map_err(|e| format!("Failed to read vault: {}", e))?;
+                if exists {
+                    return Err("A vault already exists in that folder.".to_string());
+                }
+            }
+
+            if let Some(parent) = new_db_path.parent() {
+                std::fs::create_dir_all(parent)
+                    .map_err(|e| format!("Failed to create directory: {}", e))?;
+            }
+
+            set_storage_path_preference(&new_path)
+                .map_err(|e| format!("Failed to save path preference: {}", e))?;
+
+            state
+                .db
+                .reopen(&new_db_path)
+                .map_err(|e| format!("Failed to open vault: {}", e))?;
+            sync_state_after_db_change(&state, true);
+        }
     }
-    
-    // Copy existing database if it exists
-    if current_path.exists() {
-        std::fs::copy(&current_path, &new_db_path)
-            .map_err(|e| format!("Failed to copy vault: {}", e))?;
-    }
-    
-    // Save the new path preference
-    set_storage_path_preference(&new_path)
-        .map_err(|e| format!("Failed to save path preference: {}", e))?;
-    
-    // Remove old database after successful migration
-    if current_path.exists() && current_path != new_db_path {
-        // We'll leave the old file for safety - user can manually delete it
-        // std::fs::remove_file(&current_path).ok();
-    }
-    
+
     Ok(())
 }
 
@@ -314,4 +424,3 @@ pub fn unlock_with_biometrics(state: State<VaultState>) -> Result<bool, String> 
         }
     }
 }
-

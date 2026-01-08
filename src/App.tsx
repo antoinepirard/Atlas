@@ -4,7 +4,7 @@ import { VaultUnlock } from './components/VaultUnlock';
 import { AtlasApp } from './components/AtlasApp';
 
 function VaultContent() {
-  const { status, isLoading } = useVault();
+  const { status, isLoading, isCreatingNew } = useVault();
 
   if (isLoading) {
     return (
@@ -17,7 +17,7 @@ function VaultContent() {
     );
   }
 
-  if (!status.exists) {
+  if (!status.exists || isCreatingNew) {
     return <VaultSetup />;
   }
 
@@ -35,4 +35,3 @@ export default function App() {
     </VaultProvider>
   );
 }
-

@@ -1,4 +1,4 @@
-import { useState, useCallback } from "react";
+import { useState, useCallback, useEffect } from "react";
 import { motion, AnimatePresence } from "motion/react";
 import {
   LockClosedIcon,
@@ -7,9 +7,10 @@ import {
   ClipboardDocumentIcon,
   CheckIcon,
   ShieldCheckIcon,
+  FolderIcon,
 } from "@heroicons/react/24/outline";
 import { useVault } from "./VaultProvider";
-import { startWindowDrag } from "../lib/tauri";
+import { getStoragePath, pickStorageFolder, startWindowDrag } from "../lib/tauri";
 
 type SetupStep = "password" | "recovery";
 
@@ -184,20 +185,55 @@ function RecoveryPhraseDisplay({
   );
 }
 
+function stripVaultDbPath(path: string): string {
+  if (path.endsWith("/vault.db")) {
+    return path.slice(0, -"/vault.db".length);
+  }
+  if (path.endsWith("\\vault.db")) {
+    return path.slice(0, -("\\vault.db".length));
+  }
+  return path;
+}
+
 export function VaultSetup() {
-  const { createVault } = useVault();
+  const { createVault, switchVault, status, isCreatingNew } = useVault();
   const [step, setStep] = useState<SetupStep>("password");
+  const [vaultName, setVaultName] = useState("");
+  const [storagePath, setStoragePath] = useState("");
+  const [currentStoragePath, setCurrentStoragePath] = useState("");
   const [password, setPassword] = useState("");
   const [confirmPassword, setConfirmPassword] = useState("");
   const [showPassword, setShowPassword] = useState(false);
   const [showConfirm, setShowConfirm] = useState(false);
   const [recoveryPhrase, setRecoveryPhrase] = useState<string[]>([]);
   const [isCreating, setIsCreating] = useState(false);
+  const [isSwitching, setIsSwitching] = useState(false);
+  const [isPickingLocation, setIsPickingLocation] = useState(false);
   const [error, setError] = useState("");
 
   const isPasswordValid = password.length >= 8;
   const passwordsMatch = password === confirmPassword;
-  const canCreate = isPasswordValid && passwordsMatch;
+  const trimmedStoragePath = storagePath.trim();
+  const needsNewLocation = status.exists && isCreatingNew;
+  const hasDifferentLocation =
+    trimmedStoragePath && trimmedStoragePath !== currentStoragePath;
+  const locationValid = needsNewLocation ? hasDifferentLocation : true;
+  const canCreate = isPasswordValid && passwordsMatch && locationValid;
+
+  useEffect(() => {
+    const loadStoragePath = async () => {
+      try {
+        const path = await getStoragePath();
+        const dir = stripVaultDbPath(path);
+        setCurrentStoragePath(dir);
+        setStoragePath((prev) => (prev ? prev : dir));
+      } catch (err) {
+        console.error("Failed to load storage path:", err);
+      }
+    };
+
+    loadStoragePath();
+  }, []);
 
   const handleCreate = useCallback(async () => {
     if (!canCreate) return;
@@ -206,7 +242,16 @@ export function VaultSetup() {
     setIsCreating(true);
 
     try {
-      const phrase = await createVault(password);
+      if (trimmedStoragePath && trimmedStoragePath !== currentStoragePath) {
+        await switchVault(trimmedStoragePath, "create");
+      } else if (needsNewLocation) {
+        setError("Please choose a different folder for your new vault.");
+        setIsCreating(false);
+        return;
+      }
+
+      const name = vaultName.trim();
+      const phrase = await createVault(password, name ? name : undefined);
       setRecoveryPhrase(phrase);
       setStep("recovery");
     } catch (err) {
@@ -215,7 +260,52 @@ export function VaultSetup() {
     } finally {
       setIsCreating(false);
     }
-  }, [canCreate, password, createVault]);
+  }, [
+    canCreate,
+    password,
+    createVault,
+    vaultName,
+    trimmedStoragePath,
+    currentStoragePath,
+    switchVault,
+    needsNewLocation,
+  ]);
+
+  const handleUseExisting = useCallback(async () => {
+    setError("");
+    setIsSwitching(true);
+
+    try {
+      const selectedPath = await pickStorageFolder(
+        "Choose your existing vault folder"
+      );
+      if (!selectedPath) return;
+      await switchVault(selectedPath, "switch");
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Failed to open vault");
+      console.error(err);
+    } finally {
+      setIsSwitching(false);
+    }
+  }, [switchVault]);
+
+  const handlePickLocation = useCallback(async () => {
+    setError("");
+    setIsPickingLocation(true);
+
+    try {
+      const selectedPath = await pickStorageFolder(
+        "Choose where to store this vault"
+      );
+      if (!selectedPath) return;
+      setStoragePath(selectedPath);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Failed to choose location");
+      console.error(err);
+    } finally {
+      setIsPickingLocation(false);
+    }
+  }, []);
 
   return (
     <div className="min-h-screen bg-stone-100 flex items-center justify-center p-6">
@@ -253,6 +343,62 @@ export function VaultSetup() {
             </div>
 
             <div className="space-y-4">
+              <div className="space-y-2">
+                <label className="block text-sm font-medium text-stone-600">
+                  Vault name
+                </label>
+                <input
+                  type="text"
+                  value={vaultName}
+                  onChange={(e) => setVaultName(e.target.value)}
+                  placeholder="My Atlas"
+                  maxLength={60}
+                  className="w-full px-4 py-3 bg-white border border-stone-200 rounded-xl text-stone-900 placeholder:text-stone-400 focus:outline-none focus:ring-2 focus:ring-stone-900/10 focus:border-stone-300 transition-all"
+                />
+                <p className="text-xs text-stone-400">
+                  Optional. You can use this to distinguish multiple vaults.
+                </p>
+              </div>
+
+              <div className="space-y-2">
+                <label className="block text-sm font-medium text-stone-600">
+                  Storage location
+                </label>
+                <div className="flex gap-2">
+                  <div
+                    className={`flex-1 min-w-0 px-3 py-2.5 bg-white border rounded-xl text-sm text-stone-700 truncate ${
+                      needsNewLocation && !hasDifferentLocation
+                        ? "border-red-300"
+                        : "border-stone-200"
+                    }`}
+                    title={storagePath || "Choose a folder"}
+                  >
+                    {storagePath || "Choose a folder"}
+                  </div>
+                  <button
+                    onClick={handlePickLocation}
+                    disabled={isPickingLocation}
+                    className="px-3 py-2.5 bg-stone-100 text-stone-700 rounded-xl text-sm font-medium hover:bg-stone-200 disabled:opacity-50 disabled:cursor-not-allowed transition-all flex items-center gap-1.5 flex-shrink-0"
+                  >
+                    {isPickingLocation ? (
+                      <span className="w-3.5 h-3.5 border-2 border-stone-400/30 border-t-stone-600 rounded-full animate-spin" />
+                    ) : (
+                      <FolderIcon className="w-4 h-4" />
+                    )}
+                    <span>Browse</span>
+                  </button>
+                </div>
+                {needsNewLocation && !hasDifferentLocation ? (
+                  <p className="text-xs text-red-500">
+                    Choose a different folder to keep your current vault intact.
+                  </p>
+                ) : (
+                  <p className="text-xs text-stone-400">
+                    You can change this later in Settings.
+                  </p>
+                )}
+              </div>
+
               <div className="space-y-2">
                 <label className="block text-sm font-medium text-stone-600">
                   Password
@@ -343,6 +489,32 @@ export function VaultSetup() {
               Your password encrypts your data locally on your Mac. We never see
               or store your password.
             </p>
+
+            <div className="pt-2 border-t border-stone-200/60 space-y-3">
+              <p className="text-xs text-center text-stone-400">
+                Already have a vault on this Mac?
+              </p>
+              <motion.button
+                whileHover={{ scale: !isSwitching ? 1.02 : 1 }}
+                whileTap={{ scale: !isSwitching ? 0.98 : 1 }}
+                onClick={handleUseExisting}
+                disabled={isSwitching}
+                className={`w-full px-6 py-3 rounded-full text-sm font-medium transition-all flex items-center justify-center gap-2 ${
+                  isSwitching
+                    ? "bg-stone-200 text-stone-400 cursor-not-allowed"
+                    : "bg-white text-stone-700 border border-stone-200 hover:border-stone-300 hover:text-stone-900"
+                }`}
+              >
+                {isSwitching ? (
+                  <>
+                    <div className="w-4 h-4 border-2 border-stone-400/30 border-t-stone-600 rounded-full animate-spin" />
+                    <span>Opening vault...</span>
+                  </>
+                ) : (
+                  <span>Use existing vault</span>
+                )}
+              </motion.button>
+            </div>
           </motion.div>
         ) : (
           <RecoveryPhraseDisplay

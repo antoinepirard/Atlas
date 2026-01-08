@@ -1,7 +1,38 @@
 use rusqlite::{Connection, Result as SqliteResult};
 use serde::{Deserialize, Serialize};
+use std::fs;
 use std::path::PathBuf;
 use std::sync::Mutex;
+
+/// Get the app data directory name (with -dev suffix for debug builds)
+pub fn get_app_dir_name() -> &'static str {
+    #[cfg(debug_assertions)]
+    {
+        "com.antoinepirard.atlas-dev"
+    }
+    #[cfg(not(debug_assertions))]
+    {
+        "com.antoinepirard.atlas"
+    }
+}
+
+/// Migrate old mymind directory to new location if needed
+fn migrate_old_data_dir() {
+    let old_dir = dirs::data_local_dir()
+        .unwrap_or_else(|| PathBuf::from("."))
+        .join("mymind");
+
+    let new_dir = dirs::data_local_dir()
+        .unwrap_or_else(|| PathBuf::from("."))
+        .join(get_app_dir_name());
+
+    // Only migrate if old dir exists and new dir doesn't
+    if old_dir.exists() && !new_dir.exists() {
+        if let Err(e) = fs::rename(&old_dir, &new_dir) {
+            eprintln!("Failed to migrate data directory: {}", e);
+        }
+    }
+}
 
 /// Encrypted item stored in the database
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -15,6 +46,7 @@ pub struct EncryptedItem {
 /// Vault configuration stored in the database
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct VaultConfig {
+    pub name: Option<String>,
     pub salt: String,             // Base64 encoded salt
     pub verification: String,     // Encrypted verification token
     pub recovery_encrypted: String, // Recovery phrase encrypted with password
@@ -98,17 +130,24 @@ impl Database {
     pub fn save_vault_config(&self, config: &VaultConfig) -> SqliteResult<()> {
         let conn = self.conn.lock().unwrap();
         
-        let configs = [
-            ("salt", &config.salt),
-            ("verification", &config.verification),
-            ("recovery_encrypted", &config.recovery_encrypted),
-            ("auto_lock_minutes", &config.auto_lock_minutes.to_string()),
+        let mut configs: Vec<(String, String)> = vec![
+            ("salt".to_string(), config.salt.clone()),
+            ("verification".to_string(), config.verification.clone()),
+            ("recovery_encrypted".to_string(), config.recovery_encrypted.clone()),
+            (
+                "auto_lock_minutes".to_string(),
+                config.auto_lock_minutes.to_string(),
+            ),
         ];
-        
+
+        if let Some(name) = config.name.as_ref().filter(|value| !value.trim().is_empty()) {
+            configs.push(("name".to_string(), name.trim().to_string()));
+        }
+
         for (key, value) in configs {
             conn.execute(
                 "INSERT OR REPLACE INTO vault_config (key, value) VALUES (?1, ?2)",
-                [key, value],
+                [&key, &value],
             )?;
         }
         
@@ -132,16 +171,33 @@ impl Database {
         
         let verification = get_value("verification")?.unwrap_or_default();
         let recovery_encrypted = get_value("recovery_encrypted")?.unwrap_or_default();
+        let name = get_value("name")?;
         let auto_lock_minutes: i32 = get_value("auto_lock_minutes")?
             .and_then(|v| v.parse().ok())
             .unwrap_or(15);
         
         Ok(Some(VaultConfig {
+            name,
             salt,
             verification,
             recovery_encrypted,
             auto_lock_minutes,
         }))
+    }
+
+    /// Reopen the database at a new path and reinitialize schema
+    pub fn reopen(&self, path: &PathBuf) -> SqliteResult<()> {
+        if let Some(parent) = path.parent() {
+            std::fs::create_dir_all(parent).ok();
+        }
+
+        let conn = Connection::open(path)?;
+        {
+            let mut guard = self.conn.lock().unwrap();
+            *guard = conn;
+        }
+
+        self.initialize()
     }
     
     /// Update auto-lock minutes
@@ -383,7 +439,7 @@ impl Database {
 
 /// Get storage path preference from keychain
 pub fn get_storage_path_preference() -> Option<String> {
-    if let Ok(entry) = keyring::Entry::new("mymind", "storage_path") {
+    if let Ok(entry) = keyring::Entry::new(get_app_dir_name(), "storage_path") {
         if let Ok(path) = entry.get_password() {
             return Some(path);
         }
@@ -393,17 +449,20 @@ pub fn get_storage_path_preference() -> Option<String> {
 
 /// Set storage path preference in keychain
 pub fn set_storage_path_preference(path: &str) -> Result<(), String> {
-    let entry = keyring::Entry::new("mymind", "storage_path")
+    let entry = keyring::Entry::new(get_app_dir_name(), "storage_path")
         .map_err(|e| format!("Failed to access keychain: {}", e))?;
-    
+
     entry.set_password(path)
         .map_err(|e| format!("Failed to save storage path: {}", e))?;
-    
+
     Ok(())
 }
 
 /// Get the database path (checks preference first, falls back to default)
 pub fn get_db_path() -> PathBuf {
+    // Migrate old data directory if needed
+    migrate_old_data_dir();
+
     // Check for custom storage path preference
     if let Some(custom_path) = get_storage_path_preference() {
         let path = PathBuf::from(&custom_path).join("vault.db");
@@ -412,11 +471,10 @@ pub fn get_db_path() -> PathBuf {
             return path;
         }
     }
-    
+
     // Default path
     let mut path = dirs::data_local_dir().unwrap_or_else(|| PathBuf::from("."));
-    path.push("mymind");
+    path.push(get_app_dir_name());
     path.push("vault.db");
     path
 }
-
