@@ -25,6 +25,7 @@ pub async fn process_with_ai(
 1. "tags": An array of 6-10 descriptive, lowercase tags based on the actual content. Extract key topics, themes, people mentioned, products, concepts, and relevant keywords.
 2. "summary": A concise 2-3 sentence summary of the content.
 3. "title": A concise, descriptive title (4-8 words) that captures the essence of the content.
+4. "is_article": Boolean - true if this is a readable article, blog post, or news story. False if it's a video, social media post, product page, homepage, or interactive app.
 
 Source: {}
 Title: {}
@@ -40,6 +41,7 @@ Focus on the actual content when generating tags. Return ONLY valid JSON, no mar
 1. "tags": An array of 6-10 descriptive, lowercase tags
 2. "summary": A concise 2-3 sentence summary
 3. "title": A concise, descriptive title (4-8 words) that captures the essence of the content.
+4. "is_article": Boolean - true if this is a readable article, blog post, or news story. False if it's a video, social media post, product page, homepage, or interactive app.
 
 URL: {}
 Title: {}
@@ -109,7 +111,7 @@ Return ONLY valid JSON, no markdown."#,
         .unwrap_or_default();
     
     // Parse the JSON response
-    let (tags, summary, ai_title) = parse_ai_response(&response_text);
+    let (tags, summary, ai_title, is_article) = parse_ai_response(&response_text);
 
     // Get embedding
     let embedding_input = if !summary.is_empty() {
@@ -125,6 +127,7 @@ Return ONLY valid JSON, no markdown."#,
         summary,
         embedding,
         title: ai_title,
+        is_article,
     })
 }
 
@@ -171,7 +174,7 @@ async fn get_embedding(
 }
 
 /// Parse AI response JSON
-fn parse_ai_response(text: &str) -> (Vec<String>, String, Option<String>) {
+fn parse_ai_response(text: &str) -> (Vec<String>, String, Option<String>, bool) {
     // Try to extract JSON from the response
     let json_str = if let Some(start) = text.find('{') {
         if let Some(end) = text.rfind('}') {
@@ -188,6 +191,7 @@ fn parse_ai_response(text: &str) -> (Vec<String>, String, Option<String>) {
         tags: Option<Vec<String>>,
         summary: Option<String>,
         title: Option<String>,
+        is_article: Option<bool>,
     }
 
     if let Ok(parsed) = serde_json::from_str::<AIResponse>(json_str) {
@@ -199,9 +203,10 @@ fn parse_ai_response(text: &str) -> (Vec<String>, String, Option<String>) {
             .collect();
         let summary = parsed.summary.unwrap_or_default();
         let title = parsed.title.filter(|t| !t.trim().is_empty());
-        (tags, summary, title)
+        let is_article = parsed.is_article.unwrap_or(false);
+        (tags, summary, title, is_article)
     } else {
-        (vec![], String::new(), None)
+        (vec![], String::new(), None, false)
     }
 }
 

@@ -6,6 +6,7 @@ import {
   LinkIcon,
   ChevronLeftIcon,
   ChevronRightIcon,
+  DocumentTextIcon,
 } from "@heroicons/react/24/outline";
 import type { Item } from "../types";
 import * as tauri from "../lib/tauri";
@@ -44,12 +45,24 @@ export function PreviewModal({
   const [editedContent, setEditedContent] = useState("");
   const [isSaving, setIsSaving] = useState(false);
 
+  // Reader mode state
+  const [isReaderMode, setIsReaderMode] = useState(false);
+
   // Initialize edited content when item changes
   useEffect(() => {
     if (item?.type === "note") {
       setEditedContent(item.content);
     }
   }, [item?.id, item?.type, item?.content]);
+
+  // Default to reader mode for articles
+  useEffect(() => {
+    if (item?.type === "url" && item.is_article && item.article_content) {
+      setIsReaderMode(true);
+    } else {
+      setIsReaderMode(false);
+    }
+  }, [item?.id, item?.type, item?.is_article, item?.article_content]);
 
   const hasChanges = item?.type === "note" && editedContent !== item.content;
 
@@ -240,9 +253,50 @@ export function PreviewModal({
                   </div>
                 )}
 
+                {/* Reader Mode Toggle Button */}
                 {item.type === "url" &&
                   !youtubeVideoId &&
                   !xPostInfo &&
+                  item.article_content && (
+                    <button
+                      onClick={() => setIsReaderMode(!isReaderMode)}
+                      className={`absolute top-4 right-4 px-3 py-1.5 rounded-lg text-sm font-medium shadow-sm transition-colors z-10 flex items-center gap-1.5 ${
+                        isReaderMode
+                          ? "bg-amber-500 text-white hover:bg-amber-600"
+                          : "bg-white/90 text-stone-700 hover:bg-white"
+                      }`}
+                    >
+                      <DocumentTextIcon className="w-4 h-4" />
+                      {isReaderMode ? "Show Preview" : "Reader Mode"}
+                    </button>
+                  )}
+
+                {/* Reader Mode Content */}
+                {item.type === "url" &&
+                  !youtubeVideoId &&
+                  !xPostInfo &&
+                  isReaderMode &&
+                  item.article_content && (
+                    <div className="w-full h-full overflow-auto bg-stone-50">
+                      <article className="max-w-2xl mx-auto px-8 py-12">
+                        <h1 className="text-2xl font-bold text-stone-800 mb-6 leading-tight">
+                          {item.title}
+                        </h1>
+                        <div
+                          className="prose prose-stone prose-lg max-w-none prose-headings:text-stone-800 prose-a:text-amber-600 prose-a:no-underline hover:prose-a:underline"
+                          dangerouslySetInnerHTML={{
+                            __html: item.article_content,
+                          }}
+                        />
+                      </article>
+                    </div>
+                  )}
+
+                {/* Standard URL preview (image or domain icon) */}
+                {item.type === "url" &&
+                  !youtubeVideoId &&
+                  !xPostInfo &&
+                  !isReaderMode &&
                   item.image_url && (
                     <img
                       src={item.image_url}
@@ -254,6 +308,7 @@ export function PreviewModal({
                 {item.type === "url" &&
                   !youtubeVideoId &&
                   !xPostInfo &&
+                  !isReaderMode &&
                   !item.image_url && (
                     <div className="flex flex-col items-center justify-center gap-4 p-8 text-stone-400">
                       <LinkIcon className="w-16 h-16" />

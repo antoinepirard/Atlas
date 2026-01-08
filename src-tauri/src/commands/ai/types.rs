@@ -33,6 +33,9 @@ pub struct AIProcessResult {
     pub summary: String,
     pub embedding: Vec<f32>,
     pub title: Option<String>,
+    /// Whether the content is classified as a readable article
+    #[serde(default)]
+    pub is_article: bool,
 }
 
 /// URL metadata result
@@ -42,6 +45,8 @@ pub struct UrlMetadata {
     pub description: Option<String>,
     pub image: Option<String>,
     pub author: Option<String>,
+    /// Extracted article content for reader mode
+    pub article_content: Option<String>,
 }
 
 /// Token classification result from AI

@@ -42,6 +42,8 @@ export function useItemOperations(
         let tweetContent: string | undefined;
         let author: string | undefined;
 
+        let articleContent: string | undefined;
+
         if (itemType === "url") {
           // Check if it's an X/Twitter post
           if (isXPostUrl(content)) {
@@ -65,6 +67,10 @@ export function useItemOperations(
             if (!author && metadata.author) {
               author = metadata.author;
             }
+            // Capture article content for reader mode
+            if (metadata.article_content) {
+              articleContent = metadata.article_content;
+            }
           } catch {
             // Fallback
           }
@@ -74,6 +80,7 @@ export function useItemOperations(
         let tags: string[] = [itemType];
         let summary = "";
         let embedding: number[] = [];
+        let isArticle = false;
         try {
           // For X posts, use the tweet content for AI processing
           const contentForAI = tweetContent || content;
@@ -90,6 +97,7 @@ export function useItemOperations(
           tags = aiResult.tags;
           summary = aiResult.summary;
           embedding = aiResult.embedding;
+          isArticle = aiResult.is_article || false;
           // Use AI-generated title if current title is missing or generic
           if (aiResult.title && isGenericTitle(title)) {
             title = aiResult.title;
@@ -124,6 +132,8 @@ export function useItemOperations(
           source_url: sourceUrl,
           tags,
           embedding: embedding.length > 0 ? embedding : undefined,
+          article_content: articleContent,
+          is_article: isArticle,
         });
 
         callbacks.onItemAdded(newItem);

@@ -1,3 +1,4 @@
+use super::article::extract_article;
 use super::types::UrlMetadata;
 
 /// Fetch URL metadata
@@ -34,24 +35,32 @@ pub async fn fetch_url_metadata(url: String) -> Result<UrlMetadata, String> {
             description: None,
             image: None,
             author: None,
+            article_content: None,
         });
     }
     
     let html = response.text().await.unwrap_or_default();
-    
+
     // Simple HTML parsing for meta tags
     let title = extract_meta(&html, "og:title")
         .or_else(|| extract_tag(&html, "title"));
     let description = extract_meta(&html, "og:description")
         .or_else(|| extract_meta(&html, "description"));
     let image = extract_meta(&html, "og:image");
-    
+
     // For author, prefer oEmbed data (more reliable for YouTube), then fall back to HTML parsing
     let author = oembed_data.as_ref().and_then(|o| o.author.clone())
         .or_else(|| extract_meta(&html, "author"))
         .or_else(|| extract_author_from_json_ld(&html))
         .or_else(|| extract_meta(&html, "og:site_name"));
-    
+
+    // Extract article content for reader mode (skip for YouTube/video content)
+    let article_content = if !is_youtube {
+        extract_article(&html, &url)
+    } else {
+        None
+    };
+
     Ok(UrlMetadata {
         // Prefer oEmbed title for YouTube (cleaner), fall back to page title
         title: oembed_data.as_ref().and_then(|o| o.title.clone()).or(title),
@@ -59,6 +68,7 @@ pub async fn fetch_url_metadata(url: String) -> Result<UrlMetadata, String> {
         // Prefer page image (usually higher res), fall back to oEmbed
         image: image.or_else(|| oembed_data.as_ref().and_then(|o| o.image.clone())),
         author,
+        article_content,
     })
 }
 
@@ -91,6 +101,7 @@ async fn fetch_youtube_oembed(client: &reqwest::Client, url: &str) -> Option<Url
         description: None, // oEmbed doesn't provide description
         image,
         author,
+        article_content: None, // oEmbed doesn't provide article content
     })
 }
 

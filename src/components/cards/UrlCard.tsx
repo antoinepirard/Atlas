@@ -1,5 +1,6 @@
+import { useState, useEffect } from "react";
 import { motion } from "motion/react";
-import { LinkIcon } from "@heroicons/react/24/outline";
+import { LinkIcon, DocumentTextIcon } from "@heroicons/react/24/outline";
 import type { BaseCardProps } from "./types";
 import { useCardState } from "./useCardState";
 import { SelectionIndicator } from "./SelectionIndicator";
@@ -14,6 +15,13 @@ export function UrlCard({
   isMultiSelectMode,
   onSelect,
 }: BaseCardProps) {
+  const [imageError, setImageError] = useState(false);
+
+  // Reset error state when image URL changes
+  useEffect(() => {
+    setImageError(false);
+  }, [item.image_url]);
+
   const {
     showMenu,
     isDeleting,
@@ -46,13 +54,14 @@ export function UrlCard({
         isSelected={isSelected}
       />
 
-      {item.image_url && (
+      {item.image_url && !imageError && (
         <div className="block overflow-hidden bg-stone-100">
           <img
             src={item.image_url}
             alt={item.title || "Link preview"}
             className="w-full max-h-64 object-cover transition-transform duration-300 group-hover:scale-105"
             loading="lazy"
+            onError={() => setImageError(true)}
           />
         </div>
       )}
@@ -72,7 +81,14 @@ export function UrlCard({
         </div>
 
         <div className="flex items-center gap-2 text-xs text-stone-400">
-          <LinkIcon className="w-3.5 h-3.5" />
+          {item.is_article ? (
+            <DocumentTextIcon
+              className="w-3.5 h-3.5 text-amber-500"
+              title="Article - Reader Mode available"
+            />
+          ) : (
+            <LinkIcon className="w-3.5 h-3.5" />
+          )}
           <span className="truncate">{getDomain(item.content)}</span>
           <span>·</span>
           <span>{formatDate(item.created_at)}</span>

@@ -37,6 +37,12 @@ pub struct Item {
     /// Dominant colors extracted from image (hex strings like "#ff5500")
     #[serde(default)]
     pub colors: Vec<String>,
+    /// Extracted article content for reader mode
+    #[serde(default)]
+    pub article_content: Option<String>,
+    /// Whether this URL is classified as a readable article
+    #[serde(default)]
+    pub is_article: bool,
 }
 
 /// Input for adding new content
@@ -52,6 +58,11 @@ pub struct AddItemInput {
     pub source_url: Option<String>,
     pub tags: Vec<String>,
     pub embedding: Option<Vec<f32>>,
+    /// Extracted article content for reader mode
+    pub article_content: Option<String>,
+    /// Whether this URL is classified as a readable article
+    #[serde(default)]
+    pub is_article: bool,
 }
 
 /// Check if a string is a base64 data URL
@@ -130,6 +141,8 @@ pub fn add_item(input: AddItemInput, state: State<VaultState>) -> Result<Item, S
         updated_at: now.clone(),
         image_external: false,
         colors: vec![],
+        article_content: input.article_content,
+        is_article: input.is_article,
     };
 
     // For image items with data URL content, store externally
@@ -516,6 +529,8 @@ pub fn add_item_from_capture(
                 updated_at: now.clone(),
                 image_external: false,
                 colors: vec![],
+                article_content: None,
+                is_article: false,
             };
             
             // Encrypt and save
@@ -572,6 +587,8 @@ pub fn add_item_from_capture(
                     updated_at: now.clone(),
                     image_external: false,
                     colors: vec![],
+                    article_content: None,
+                    is_article: false,
                 };
                 
                 // Encrypt and save

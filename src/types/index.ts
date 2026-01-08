@@ -17,6 +17,10 @@ export interface Item {
   image_external?: boolean;
   /** Dominant colors extracted from image (hex strings like "#ff5500") */
   colors?: string[];
+  /** Extracted article content for reader mode */
+  article_content?: string | null;
+  /** Whether this URL is classified as a readable article */
+  is_article?: boolean;
 }
 
 export interface MigrationResult {
@@ -57,6 +61,10 @@ export interface AddItemInput {
   source_url?: string;
   tags: string[];
   embedding?: number[];
+  /** Extracted article content for reader mode */
+  article_content?: string;
+  /** Whether this URL is classified as a readable article */
+  is_article?: boolean;
 }
 
 export interface SearchResult extends Item {
@@ -76,6 +84,8 @@ export interface AIProcessResult {
   summary: string;
   embedding: number[];
   title?: string;
+  /** Whether the content is classified as a readable article */
+  is_article?: boolean;
 }
 
 export interface UrlMetadata {
@@ -83,6 +93,8 @@ export interface UrlMetadata {
   description: string | null;
   image: string | null;
   author: string | null;
+  /** Extracted article content for reader mode */
+  article_content?: string | null;
 }
 
 /** Data from quick capture (global shortcut) */
