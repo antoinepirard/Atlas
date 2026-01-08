@@ -82,3 +82,27 @@ export function getDomain(url: string): string {
   }
 }
 
+/**
+ * Returns a safe external URL (http/https) or null.
+ */
+export function getSafeExternalUrl(url: string): string | null {
+  try {
+    const parsed = new URL(url);
+    if (parsed.protocol === "http:" || parsed.protocol === "https:") {
+      return parsed.toString();
+    }
+  } catch {
+    // Ignore invalid URLs
+  }
+  return null;
+}
+
+/**
+ * Returns a safe image URL (http/https, blob, or data:image) or null.
+ */
+export function getSafeImageUrl(url: string): string | null {
+  if (!url) return null;
+  if (url.startsWith("blob:")) return url;
+  if (/^data:image\//i.test(url)) return url;
+  return getSafeExternalUrl(url);
+}

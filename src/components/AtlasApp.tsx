@@ -22,6 +22,7 @@ import { useAtlas } from "../hooks/useAtlas";
 import { toggleMaximize } from "../lib/tauri";
 import type { Item } from "../types";
 import { convertClipboardHtml } from "../utils/htmlToText";
+import { getSafeExternalUrl } from "../utils/urlUtils";
 
 export function AtlasApp() {
   const { lock, status } = useVault();
@@ -238,7 +239,12 @@ export function AtlasApp() {
 
         switch (action) {
           case "open_external":
-            window.open(item.content, "_blank", "noopener,noreferrer");
+            {
+              const safeUrl = getSafeExternalUrl(item.content);
+              if (safeUrl) {
+                window.open(safeUrl, "_blank", "noopener,noreferrer");
+              }
+            }
             break;
           case "copy":
             navigator.clipboard.writeText(item.content);

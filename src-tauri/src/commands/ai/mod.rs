@@ -13,4 +13,4 @@ pub use api_key::*;
 pub use processing::*;
 pub use url_metadata::*;
 pub use classification::*;
-
+pub use article::sanitize_article_html;

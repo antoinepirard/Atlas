@@ -15,6 +15,8 @@ import {
   getXPostInfo,
   formatDate,
   getDomain,
+  getSafeExternalUrl,
+  getSafeImageUrl,
 } from "../utils/urlUtils";
 import { SimpleNoteEditor } from "./SimpleNoteEditor";
 
@@ -98,6 +100,21 @@ export function PreviewModal({
     if (!item || item.type !== "url") return null;
     return getXPostInfo(item.content);
   }, [item]);
+
+  const safeItemUrl = useMemo(() => {
+    if (!item || item.type !== "url") return null;
+    return getSafeExternalUrl(item.content);
+  }, [item?.type, item?.content]);
+
+  const safeSourceUrl = useMemo(() => {
+    if (!item?.source_url) return null;
+    return getSafeExternalUrl(item.source_url);
+  }, [item?.source_url]);
+
+  const safeImageHref = useMemo(() => {
+    const candidate = fullImageUrl || item?.image_url || item?.content || "";
+    return getSafeImageUrl(candidate);
+  }, [fullImageUrl, item?.image_url, item?.content]);
 
   // Load full image on demand for external images
   useEffect(() => {
@@ -402,17 +419,23 @@ export function PreviewModal({
                     <p className="text-xs font-medium text-stone-400 uppercase tracking-wider mb-2">
                       Source
                     </p>
-                    <a
-                      href={item.content}
-                      target="_blank"
-                      rel="noopener noreferrer"
-                      className="flex items-center gap-2 text-sm text-amber-600 hover:text-amber-700 transition-colors group"
-                    >
-                      <span className="truncate">
+                    {safeItemUrl ? (
+                      <a
+                        href={safeItemUrl}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="flex items-center gap-2 text-sm text-amber-600 hover:text-amber-700 transition-colors group"
+                      >
+                        <span className="truncate">
+                          {getDomain(item.content)}
+                        </span>
+                        <ArrowTopRightOnSquareIcon className="w-4 h-4 flex-shrink-0 opacity-0 group-hover:opacity-100 transition-opacity" />
+                      </a>
+                    ) : (
+                      <span className="text-sm text-stone-400 truncate">
                         {getDomain(item.content)}
                       </span>
-                      <ArrowTopRightOnSquareIcon className="w-4 h-4 flex-shrink-0 opacity-0 group-hover:opacity-100 transition-opacity" />
-                    </a>
+                    )}
                   </div>
                 )}
 
@@ -422,18 +445,25 @@ export function PreviewModal({
                     <p className="text-xs font-medium text-stone-400 uppercase tracking-wider mb-2">
                       Captured from
                     </p>
-                    <a
-                      href={item.source_url}
-                      target="_blank"
-                      rel="noopener noreferrer"
-                      className="flex items-center gap-2 text-sm text-amber-600 hover:text-amber-700 transition-colors group"
-                    >
-                      <LinkIcon className="w-4 h-4 flex-shrink-0" />
-                      <span className="truncate">
+                    {safeSourceUrl ? (
+                      <a
+                        href={safeSourceUrl}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="flex items-center gap-2 text-sm text-amber-600 hover:text-amber-700 transition-colors group"
+                      >
+                        <LinkIcon className="w-4 h-4 flex-shrink-0" />
+                        <span className="truncate">
+                          {getDomain(item.source_url)}
+                        </span>
+                        <ArrowTopRightOnSquareIcon className="w-4 h-4 flex-shrink-0 opacity-0 group-hover:opacity-100 transition-opacity" />
+                      </a>
+                    ) : (
+                      <span className="flex items-center gap-2 text-sm text-stone-400 truncate">
+                        <LinkIcon className="w-4 h-4 flex-shrink-0" />
                         {getDomain(item.source_url)}
                       </span>
-                      <ArrowTopRightOnSquareIcon className="w-4 h-4 flex-shrink-0 opacity-0 group-hover:opacity-100 transition-opacity" />
-                    </a>
+                    )}
                   </div>
                 )}
 
@@ -473,9 +503,9 @@ export function PreviewModal({
 
                 {/* Actions */}
                 <div className="flex items-center justify-end gap-2 pt-4 border-t border-stone-100">
-                  {item.type === "url" && (
+                  {item.type === "url" && safeItemUrl && (
                     <a
-                      href={item.content}
+                      href={safeItemUrl}
                       target="_blank"
                       rel="noopener noreferrer"
                       className="px-4 py-2 bg-stone-800 text-white rounded-lg text-sm font-medium hover:bg-stone-700 transition-colors flex items-center gap-2"
@@ -488,9 +518,18 @@ export function PreviewModal({
                       <ArrowTopRightOnSquareIcon className="w-4 h-4" />
                     </a>
                   )}
-                  {item.type === "image" && (
+                  {item.type === "url" && !safeItemUrl && (
+                    <button
+                      type="button"
+                      disabled
+                      className="px-4 py-2 bg-stone-200 text-stone-400 rounded-lg text-sm font-medium cursor-not-allowed"
+                    >
+                      Invalid URL
+                    </button>
+                  )}
+                  {item.type === "image" && safeImageHref && (
                     <a
-                      href={fullImageUrl || item.image_url || item.content}
+                      href={safeImageHref}
                       target="_blank"
                       rel="noopener noreferrer"
                       className="px-4 py-2 bg-stone-800 text-white rounded-lg text-sm font-medium hover:bg-stone-700 transition-colors flex items-center gap-2"

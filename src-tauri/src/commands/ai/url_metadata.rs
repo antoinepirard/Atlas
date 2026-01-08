@@ -1,45 +1,192 @@
 use super::article::extract_article;
 use super::types::UrlMetadata;
+use futures::StreamExt;
+use reqwest::header::{CONTENT_TYPE, LOCATION};
+use reqwest::{redirect::Policy, Client, Url};
+use std::net::{IpAddr, Ipv4Addr, Ipv6Addr, ToSocketAddrs};
+
+const MAX_HTML_BYTES: usize = 2 * 1024 * 1024;
+const MAX_REDIRECTS: usize = 3;
+
+fn is_blocked_hostname(host: &str) -> bool {
+    let host = host.trim_end_matches('.').to_ascii_lowercase();
+    host == "localhost"
+        || host.ends_with(".localhost")
+        || host.ends_with(".local")
+        || host.ends_with(".localdomain")
+}
+
+fn is_private_ipv4(ip: Ipv4Addr) -> bool {
+    ip.is_private()
+        || ip.is_loopback()
+        || ip.is_link_local()
+        || ip.is_unspecified()
+        || ip.is_broadcast()
+        || ip.is_documentation()
+        || {
+            let octets = ip.octets();
+            octets[0] == 100 && (octets[1] & 0b1100_0000) == 0b0100_0000
+        }
+}
+
+fn is_private_ipv6(ip: Ipv6Addr) -> bool {
+    if let Some(v4) = ip.to_ipv4() {
+        return is_private_ipv4(v4);
+    }
+    ip.is_loopback()
+        || ip.is_unique_local()
+        || ip.is_unicast_link_local()
+        || ip.is_unspecified()
+        || ip.is_multicast()
+}
+
+fn is_private_ip(ip: IpAddr) -> bool {
+    match ip {
+        IpAddr::V4(v4) => is_private_ipv4(v4),
+        IpAddr::V6(v6) => is_private_ipv6(v6),
+    }
+}
+
+fn validate_url(url: &Url) -> Result<(), String> {
+    match url.scheme() {
+        "http" | "https" => {}
+        _ => return Err("Only http/https URLs are allowed".to_string()),
+    }
+
+    let host = url.host_str().ok_or_else(|| "URL is missing host".to_string())?;
+    if is_blocked_hostname(host) {
+        return Err("Blocked URL host".to_string());
+    }
+
+    if let Ok(ip) = host.parse::<IpAddr>() {
+        if is_private_ip(ip) {
+            return Err("Blocked URL host".to_string());
+        }
+    }
+
+    let port = url.port_or_known_default().unwrap_or(80);
+    let addrs = (host, port)
+        .to_socket_addrs()
+        .map_err(|_| "Failed to resolve host".to_string())?;
+
+    for addr in addrs {
+        if is_private_ip(addr.ip()) {
+            return Err("Blocked URL host".to_string());
+        }
+    }
+
+    Ok(())
+}
+
+fn validate_fetch_url(raw_url: &str) -> Result<Url, String> {
+    let url = Url::parse(raw_url).map_err(|_| "Invalid URL".to_string())?;
+    validate_url(&url)?;
+    Ok(url)
+}
+
+fn is_youtube_url(url: &Url) -> bool {
+    matches!(url.host_str(), Some(host) if host.contains("youtube.com") || host.contains("youtu.be"))
+}
+
+async fn fetch_html(client: &Client, start_url: Url) -> Result<Option<String>, String> {
+    let mut current = start_url;
+
+    for _ in 0..=MAX_REDIRECTS {
+        let response = client
+            .get(current.clone())
+            .header("User-Agent", "Mozilla/5.0 (compatible; AtlasBot/1.0)")
+            .send()
+            .await
+            .map_err(|e| format!("Failed to fetch URL: {}", e))?;
+
+        if response.status().is_redirection() {
+            let location = response
+                .headers()
+                .get(LOCATION)
+                .ok_or_else(|| "Redirect without location header".to_string())?;
+            let location = location
+                .to_str()
+                .map_err(|_| "Invalid redirect location".to_string())?;
+            let next = current
+                .join(location)
+                .map_err(|_| "Invalid redirect URL".to_string())?;
+            validate_url(&next)?;
+            current = next;
+            continue;
+        }
+
+        if !response.status().is_success() {
+            return Ok(None);
+        }
+
+        if let Some(len) = response.content_length() {
+            if len > MAX_HTML_BYTES as u64 {
+                return Err("Response too large".to_string());
+            }
+        }
+
+        if let Some(content_type) = response
+            .headers()
+            .get(CONTENT_TYPE)
+            .and_then(|value| value.to_str().ok())
+        {
+            if !content_type.contains("text/html")
+                && !content_type.contains("application/xhtml+xml")
+            {
+                return Ok(None);
+            }
+        }
+
+        let mut body = Vec::new();
+        let mut stream = response.bytes_stream();
+        while let Some(chunk) = stream.next().await {
+            let chunk = chunk.map_err(|e| format!("Failed to read response: {}", e))?;
+            if body.len() + chunk.len() > MAX_HTML_BYTES {
+                return Err("Response too large".to_string());
+            }
+            body.extend_from_slice(&chunk);
+        }
+
+        let html = String::from_utf8_lossy(&body).to_string();
+        return Ok(Some(html));
+    }
+
+    Err("Too many redirects".to_string())
+}
 
 /// Fetch URL metadata
 #[tauri::command]
 pub async fn fetch_url_metadata(url: String) -> Result<UrlMetadata, String> {
     let client = reqwest::Client::builder()
         .timeout(std::time::Duration::from_secs(10))
+        .redirect(Policy::none())
         .build()
         .map_err(|e| e.to_string())?;
-    
+    let url = validate_fetch_url(&url)?;
+
     // Check if this is a YouTube URL - use oEmbed API for channel name
-    let is_youtube = url.contains("youtube.com") || url.contains("youtu.be");
+    let is_youtube = is_youtube_url(&url);
     let oembed_data = if is_youtube {
-        fetch_youtube_oembed(&client, &url).await
+        fetch_youtube_oembed(&client, url.as_str()).await
     } else {
         None
     };
-    
-    // Fetch the page for description and other metadata
-    let response = client
-        .get(&url)
-        .header("User-Agent", "Mozilla/5.0 (compatible; AtlasBot/1.0)")
-        .send()
-        .await
-        .map_err(|e| format!("Failed to fetch URL: {}", e))?;
-    
-    if !response.status().is_success() {
-        // If page fetch failed but we have oEmbed data, use that
-        if let Some(oembed) = oembed_data {
-            return Ok(oembed);
+
+    let html = match fetch_html(&client, url.clone()).await? {
+        Some(content) => content,
+        None => {
+            if let Some(oembed) = oembed_data {
+                return Ok(oembed);
+            }
+            return Ok(UrlMetadata {
+                title: None,
+                description: None,
+                image: None,
+                author: None,
+                article_content: None,
+            });
         }
-        return Ok(UrlMetadata {
-            title: None,
-            description: None,
-            image: None,
-            author: None,
-            article_content: None,
-        });
-    }
-    
-    let html = response.text().await.unwrap_or_default();
+    };
 
     // Simple HTML parsing for meta tags
     let title = extract_meta(&html, "og:title")
@@ -56,7 +203,7 @@ pub async fn fetch_url_metadata(url: String) -> Result<UrlMetadata, String> {
 
     // Extract article content for reader mode (skip for YouTube/video content)
     let article_content = if !is_youtube {
-        extract_article(&html, &url)
+        extract_article(&html, url.as_str())
     } else {
         None
     };
@@ -265,4 +412,3 @@ fn extract_author_from_json(json_str: &str) -> Option<String> {
     
     None
 }
-

@@ -63,7 +63,7 @@ image = { version = "0.25", default-features = false, features = ["jpeg", "png",
 
 # Article extraction (Reader Mode)
 readability = "0.3"
+ammonia = "3"
 
 [target.'cfg(not(any(target_os = "android", target_os = "ios")))'.dependencies]
 tauri-plugin-shell = "2"
-

@@ -1,5 +1,5 @@
 use crate::capture::QuickCaptureData;
-use crate::commands::ai::{fetch_url_metadata, process_with_ai};
+use crate::commands::ai::{fetch_url_metadata, process_with_ai, sanitize_article_html};
 use crate::commands::vault::VaultState;
 use crate::crypto;
 use crate::db::{EncryptedItem, FtsEntry};
@@ -71,6 +71,12 @@ fn is_data_url(s: &str) -> bool {
     s.starts_with("data:image/")
 }
 
+fn sanitize_item_article_content(item: &mut Item) {
+    if let Some(content) = item.article_content.take() {
+        item.article_content = Some(sanitize_article_html(&content));
+    }
+}
+
 /// Get all items (decrypted)
 /// For images with external storage, returns thumbnails instead of full images
 #[tauri::command]
@@ -99,6 +105,7 @@ pub fn get_all_items(state: State<VaultState>) -> Result<Vec<Item>, String> {
                             }
                         }
                     }
+                    sanitize_item_article_content(&mut item);
                     // Don't send embeddings to frontend (saves bandwidth)
                     // Frontend will request them only for search
                     item.embedding = None;
@@ -158,6 +165,8 @@ pub fn add_item(input: AddItemInput, state: State<VaultState>) -> Result<Item, S
         item.colors = image_result.colors;
     }
 
+    sanitize_item_article_content(&mut item);
+
     // Save embedding to separate table for server-side search
     if let Some(ref embedding) = item.embedding {
         if !embedding.is_empty() {
@@ -206,6 +215,7 @@ pub fn update_item(item: Item, state: State<VaultState>) -> Result<Item, String>
     let now = chrono::Utc::now().to_rfc3339();
     let mut updated_item = item;
     updated_item.updated_at = now.clone();
+    sanitize_item_article_content(&mut updated_item);
 
     // Encrypt and save
     let json = serde_json::to_string(&updated_item).map_err(|e| e.to_string())?;
@@ -467,6 +477,7 @@ pub fn get_items_page(
                             }
                         }
                     }
+                    sanitize_item_article_content(&mut item);
                     // Don't send embeddings to frontend
                     item.embedding = None;
                     items.push(item);
