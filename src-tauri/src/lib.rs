@@ -118,15 +118,99 @@ fn open_accessibility_settings() -> Result<(), String> {
     capture::open_accessibility_settings()
 }
 
+#[derive(Clone)]
+struct TrayIcons {
+    base: Image<'static>,
+    saving: Image<'static>,
+}
+
+#[derive(Clone, Copy)]
+enum TrayStatus {
+    Saving,
+    Saved,
+    Failed,
+}
+
+fn overlay_status_dot(rgba: &mut [u8], width: u32, height: u32) {
+    if width == 0 || height == 0 {
+        return;
+    }
+
+    let min_dim = width.min(height);
+    let radius = (min_dim / 6).max(2) as i32;
+    let padding: u32 = 1;
+    let center_x = width.saturating_sub(padding + radius as u32) as i32;
+    let center_y = height.saturating_sub(padding + radius as u32) as i32;
+
+    let border = (radius / 3).max(1);
+    let inner_radius = (radius - border).max(1);
+    let x_start = center_x - radius;
+    let x_end = center_x + radius;
+    let y_start = center_y - radius;
+    let y_end = center_y + radius;
+
+    for y in y_start..=y_end {
+        for x in x_start..=x_end {
+            let dx = x - center_x;
+            let dy = y - center_y;
+            let dist2 = dx * dx + dy * dy;
+            if dist2 <= radius * radius {
+                if x >= 0 && y >= 0 && (x as u32) < width && (y as u32) < height {
+                    let idx = ((y as u32 * width + x as u32) * 4) as usize;
+                    if dist2 <= inner_radius * inner_radius {
+                        rgba[idx] = 0;
+                        rgba[idx + 1] = 0;
+                        rgba[idx + 2] = 0;
+                        rgba[idx + 3] = 255;
+                    } else {
+                        rgba[idx] = 0;
+                        rgba[idx + 1] = 0;
+                        rgba[idx + 2] = 0;
+                        rgba[idx + 3] = 0;
+                    }
+                }
+            }
+        }
+    }
+}
+
+fn create_saving_icon(base: &Image<'static>) -> Image<'static> {
+    let mut rgba = base.rgba().to_vec();
+    overlay_status_dot(&mut rgba, base.width(), base.height());
+    Image::new_owned(rgba, base.width(), base.height())
+}
+
+fn load_tray_icons(app: &tauri::AppHandle) -> TrayIcons {
+    let icon_bytes = include_bytes!("../icons/trayIcon.png");
+    let base = image::load_from_memory(icon_bytes)
+        .map(|img| {
+            let rgba = img.to_rgba8();
+            let (width, height) = rgba.dimensions();
+            Image::new_owned(rgba.into_raw(), width, height)
+        })
+        .unwrap_or_else(|_| {
+            if let Some(icon) = app.default_window_icon() {
+                icon.clone().to_owned()
+            } else {
+                Image::new_owned(vec![0u8; 4 * 32 * 32], 32, 32)
+            }
+        });
+    let saving = create_saving_icon(&base);
+
+    TrayIcons { base, saving }
+}
+
 /// Shared state for the tray icon handle
 pub struct TrayState {
     pub handle: TokioMutex<Option<tauri::tray::TrayIcon>>,
+    pub icons: TokioMutex<Option<TrayIcons>>,
 }
 
 impl TrayState {
     pub fn new() -> Self {
         TrayState {
             handle: TokioMutex::new(None),
+            icons: TokioMutex::new(None),
         }
     }
 }
@@ -143,20 +227,37 @@ fn create_tray_menu(app: &tauri::AppHandle) -> Result<tauri::menu::Menu<tauri::W
     tauri::menu::Menu::with_items(app, &[&add_item, &separator1, &open_item, &updates_item, &separator2, &quit_item])
 }
 
-/// Update tray title to show status
-pub async fn set_tray_status(app: &tauri::AppHandle, status: &str) {
+/// Update tray icon/tooltip to show status (icon-only, no title text)
+async fn set_tray_status(app: &tauri::AppHandle, status: TrayStatus) {
     if let Some(tray_state) = app.try_state::<TrayState>() {
-        if let Some(tray) = tray_state.handle.lock().await.as_ref() {
-            let _ = tray.set_title(Some(status));
+        let tray = tray_state.handle.lock().await;
+        let icons = tray_state.icons.lock().await;
+
+        if let (Some(tray), Some(icons)) = (tray.as_ref(), icons.as_ref()) {
+            let (tooltip, icon) = match status {
+                TrayStatus::Saving => ("Saving...", &icons.saving),
+                TrayStatus::Saved => ("Saved", &icons.base),
+                TrayStatus::Failed => ("Save failed", &icons.base),
+            };
+            let _ = tray.set_title(None::<&str>);
+            let _ = tray.set_tooltip(Some(tooltip));
+            let _ = tray.set_icon(Some(icon.clone()));
+            let _ = tray.set_icon_as_template(true);
         }
     }
 }
 
-/// Clear tray title
-pub async fn clear_tray_status(app: &tauri::AppHandle) {
+/// Clear tray status UI and restore the base icon
+async fn clear_tray_status(app: &tauri::AppHandle) {
     if let Some(tray_state) = app.try_state::<TrayState>() {
-        if let Some(tray) = tray_state.handle.lock().await.as_ref() {
+        let tray = tray_state.handle.lock().await;
+        let icons = tray_state.icons.lock().await;
+
+        if let (Some(tray), Some(icons)) = (tray.as_ref(), icons.as_ref()) {
             let _ = tray.set_title(None::<&str>);
+            let _ = tray.set_tooltip(None::<&str>);
+            let _ = tray.set_icon(Some(icons.base.clone()));
+            let _ = tray.set_icon_as_template(true);
         }
     }
 }
@@ -183,7 +284,7 @@ pub fn run() {
                             let app_handle = app.clone();
                             tauri::async_runtime::spawn(async move {
                                 // Update tray to show saving status
-                                set_tray_status(&app_handle, "Saving…").await;
+                                set_tray_status(&app_handle, TrayStatus::Saving).await;
                                 
                                 match capture::capture() {
                                     Ok(data) => {
@@ -191,22 +292,24 @@ pub fn run() {
                                         match commands::items::add_item_from_capture(
                                             data,
                                             app_handle.state::<VaultState>(),
-                                        ) {
+                                        )
+                                        .await
+                                        {
                                             Ok(_) => {
-                                                set_tray_status(&app_handle, "✓ Saved").await;
+                                                set_tray_status(&app_handle, TrayStatus::Saved).await;
                                                 if let Some(window) = app_handle.get_webview_window("main") {
                                                     let _ = window.emit("items-updated", ());
                                                 }
                                             }
                                             Err(e) => {
                                                 eprintln!("Background save failed: {}", e);
-                                                set_tray_status(&app_handle, "✗ Failed").await;
+                                                set_tray_status(&app_handle, TrayStatus::Failed).await;
                                             }
                                         }
                                     }
                                     Err(e) => {
                                         eprintln!("Quick capture failed: {}", e);
-                                        set_tray_status(&app_handle, "✗ Failed").await;
+                                        set_tray_status(&app_handle, TrayStatus::Failed).await;
                                     }
                                 }
                                 
@@ -231,24 +334,10 @@ pub fn run() {
             // Create tray icon
             let tray_menu = create_tray_menu(app.handle())?;
             
-            // Load tray icon - use embedded bytes for reliability
-            let icon_bytes = include_bytes!("../icons/trayIcon.png");
-            let icon = image::load_from_memory(icon_bytes)
-                .map(|img| {
-                    let rgba = img.to_rgba8();
-                    let (width, height) = rgba.dimensions();
-                    Image::new_owned(rgba.into_raw(), width, height)
-                })
-                .unwrap_or_else(|_| {
-                    // Fallback to default window icon
-                    app.default_window_icon().cloned().unwrap_or_else(|| {
-                        // Ultimate fallback - empty transparent icon
-                        Image::new_owned(vec![0u8; 4 * 32 * 32], 32, 32)
-                    })
-                });
+            let tray_icons = load_tray_icons(app.handle());
             
             let tray_icon = TrayIconBuilder::new()
-                .icon(icon)
+                .icon(tray_icons.base.clone())
                 .icon_as_template(true) // Important for macOS menu bar
                 .menu(&tray_menu)
                 .show_menu_on_left_click(true) // Show menu on click
@@ -258,29 +347,31 @@ pub fn run() {
                             // Trigger quick capture manually
                             let app_handle = app.clone();
                             tauri::async_runtime::spawn(async move {
-                                set_tray_status(&app_handle, "Saving…").await;
+                                set_tray_status(&app_handle, TrayStatus::Saving).await;
                                 
                                 match capture::capture() {
                                     Ok(data) => {
                                         match commands::items::add_item_from_capture(
                                             data,
                                             app_handle.state::<VaultState>(),
-                                        ) {
+                                        )
+                                        .await
+                                        {
                                             Ok(_) => {
-                                                set_tray_status(&app_handle, "✓ Saved").await;
+                                                set_tray_status(&app_handle, TrayStatus::Saved).await;
                                                 if let Some(window) = app_handle.get_webview_window("main") {
                                                     let _ = window.emit("items-updated", ());
                                                 }
                                             }
                                             Err(e) => {
                                                 eprintln!("Quick capture failed: {}", e);
-                                                set_tray_status(&app_handle, "✗ Failed").await;
+                                                set_tray_status(&app_handle, TrayStatus::Failed).await;
                                             }
                                         }
                                     }
                                     Err(e) => {
                                         eprintln!("Capture failed: {}", e);
-                                        set_tray_status(&app_handle, "✗ Failed").await;
+                                        set_tray_status(&app_handle, TrayStatus::Failed).await;
                                     }
                                 }
                                 
@@ -314,6 +405,7 @@ pub fn run() {
             let tray_state = app.state::<TrayState>();
             tauri::async_runtime::block_on(async {
                 *tray_state.handle.lock().await = Some(tray_icon);
+                *tray_state.icons.lock().await = Some(tray_icons);
             });
             
             Ok(())

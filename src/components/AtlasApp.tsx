@@ -56,6 +56,10 @@ export function AtlasApp() {
   } = useAtlas();
 
   const pendingRefreshRef = useRef(false);
+  const multiSelectTimerRef = useRef<ReturnType<typeof setTimeout> | null>(
+    null
+  );
+  const multiSelectBlockedRef = useRef(false);
 
   useEffect(() => {
     const unlisten = listen("items-updated", () => {
@@ -112,24 +116,67 @@ export function AtlasApp() {
 
   // Track CMD key for multi-select mode
   useEffect(() => {
-    const handleKeyDown = (e: KeyboardEvent) => {
-      if (e.key === "Meta" || e.key === "Control") {
-        setIsMultiSelectMode(true);
+    const multiSelectDelayMs = 200;
+
+    const clearMultiSelectTimer = () => {
+      if (multiSelectTimerRef.current) {
+        clearTimeout(multiSelectTimerRef.current);
+        multiSelectTimerRef.current = null;
       }
+    };
+
+    const handleKeyDown = (e: KeyboardEvent) => {
       // Escape to clear selection
       if (e.key === "Escape" && selectedIds.size > 0) {
         clearSelection();
+        return;
+      }
+
+      const target = e.target as HTMLElement | null;
+      const isTypingTarget =
+        target &&
+        (target.tagName === "INPUT" ||
+          target.tagName === "TEXTAREA" ||
+          target.isContentEditable);
+
+      if (isTypingTarget) {
+        return;
+      }
+
+      if (e.key === "Meta" || e.key === "Control") {
+        if (isMultiSelectMode || multiSelectTimerRef.current) {
+          return;
+        }
+
+        multiSelectBlockedRef.current = false;
+        multiSelectTimerRef.current = setTimeout(() => {
+          multiSelectTimerRef.current = null;
+          if (!multiSelectBlockedRef.current) {
+            setIsMultiSelectMode(true);
+          }
+        }, multiSelectDelayMs);
+        return;
+      }
+
+      if (e.metaKey || e.ctrlKey) {
+        multiSelectBlockedRef.current = true;
+        clearMultiSelectTimer();
+        setIsMultiSelectMode(false);
       }
     };
 
     const handleKeyUp = (e: KeyboardEvent) => {
       if (e.key === "Meta" || e.key === "Control") {
+        multiSelectBlockedRef.current = false;
+        clearMultiSelectTimer();
         setIsMultiSelectMode(false);
       }
     };
 
     // Also handle when window loses focus (cmd+tab etc)
     const handleBlur = () => {
+      multiSelectBlockedRef.current = false;
+      clearMultiSelectTimer();
       setIsMultiSelectMode(false);
     };
 
@@ -141,8 +188,9 @@ export function AtlasApp() {
       window.removeEventListener("keydown", handleKeyDown);
       window.removeEventListener("keyup", handleKeyUp);
       window.removeEventListener("blur", handleBlur);
+      clearMultiSelectTimer();
     };
-  }, [selectedIds.size, clearSelection]);
+  }, [selectedIds.size, clearSelection, isMultiSelectMode]);
 
   const handleAddContent = useCallback(
     async (content: string) => {

@@ -1,4 +1,5 @@
 use crate::capture::QuickCaptureData;
+use crate::commands::ai::{fetch_url_metadata, process_with_ai};
 use crate::commands::vault::VaultState;
 use crate::crypto;
 use crate::db::{EncryptedItem, FtsEntry};
@@ -488,137 +489,184 @@ pub fn get_items_page(
 
 /// Add item from quick capture data (background save, no frontend required)
 /// This is called directly from the global shortcut handler
-pub fn add_item_from_capture(
+pub async fn add_item_from_capture(
     data: QuickCaptureData,
-    state: State<VaultState>,
+    state: State<'_, VaultState>,
 ) -> Result<Vec<Item>, String> {
-    let key = state.get_key().ok_or("Vault is locked")?;
-    
+    state.get_key().ok_or("Vault is locked")?;
+
     let has_url = data.url.as_ref().map(|u| !u.is_empty()).unwrap_or(false);
-    let has_text = data.selected_text.as_ref().map(|t| !t.trim().is_empty()).unwrap_or(false);
-    
+    let has_text = data
+        .selected_text
+        .as_ref()
+        .map(|t| !t.trim().is_empty())
+        .unwrap_or(false);
+
     if !has_url && !has_text {
         return Err("No content to save".to_string());
     }
-    
+
     let mut saved_items = Vec::new();
     let source_url = data.url.clone();
-    
-    // Save URL as a link if present
+
+    let mut url_title = data.page_title.clone();
+    let mut url_description: Option<String> = None;
+    let mut url_image: Option<String> = None;
+    let mut url_author: Option<String> = None;
+    let mut url_article_content: Option<String> = None;
+
     if has_url {
-        if let Some(url) = &data.url {
-            let now = chrono::Utc::now().to_rfc3339();
-            let id = format!(
-                "item-{}-{}",
-                chrono::Utc::now().timestamp_millis(),
-                &uuid::Uuid::new_v4().to_string()[..8]
-            );
-            
-            let item = Item {
-                id: id.clone(),
-                item_type: ItemType::Url,
-                content: url.clone(),
-                title: data.page_title.clone(),
-                description: None,
-                summary: None,
-                image_url: None,
-                source_url: None,
-                tags: vec![],
-                embedding: None,
-                created_at: now.clone(),
-                updated_at: now.clone(),
-                image_external: false,
-                colors: vec![],
-                article_content: None,
-                is_article: false,
+        if let Some(url) = data.url.as_ref() {
+            if let Ok(metadata) = fetch_url_metadata(url.clone()).await {
+                let (title, description, image, author, article_content) = (
+                    metadata.title,
+                    metadata.description,
+                    metadata.image,
+                    metadata.author,
+                    metadata.article_content,
+                );
+                if title.is_some() {
+                    url_title = title;
+                }
+                url_description = description;
+                url_image = image;
+                url_author = author;
+                url_article_content = article_content;
+            }
+        }
+    }
+
+    if has_url {
+        if let Some(url) = data.url.as_ref() {
+            let mut title = url_title.clone();
+            let description = url_description.clone();
+            let description_for_ai = match (&url_author, &description) {
+                (Some(author), Some(desc)) => Some(format!("By: {}. {}", author, desc)),
+                (Some(author), None) => Some(format!("By: {}", author)),
+                (None, Some(desc)) => Some(desc.clone()),
+                (None, None) => None,
             };
-            
-            // Encrypt and save
-            let json = serde_json::to_string(&item).map_err(|e| e.to_string())?;
-            let encrypted_data = crypto::encrypt(&json, &key).map_err(|e| e.to_string())?;
-            
-            let encrypted_item = EncryptedItem {
-                id,
-                encrypted_data,
-                created_at: now.clone(),
-                updated_at: now,
-            };
-            
-            state.db.save_item(&encrypted_item).map_err(|e| e.to_string())?;
-            
-            // Index in FTS
-            let fts_entry = FtsEntry {
-                item_id: item.id.clone(),
-                title: item.title.clone().unwrap_or_default(),
-                description: String::new(),
-                summary: String::new(),
-                tags: String::new(),
-            };
-            state.db.index_fts(&fts_entry).ok();
-            
+
+            let mut tags = vec!["url".to_string()];
+            let mut summary = String::new();
+            let mut embedding: Vec<f32> = Vec::new();
+            let mut is_article = false;
+
+            if let Ok(ai_result) = process_with_ai(
+                url.clone(),
+                ItemType::Url,
+                title.clone(),
+                description_for_ai,
+            )
+            .await
+            {
+                tags = ai_result.tags;
+                summary = ai_result.summary;
+                embedding = ai_result.embedding;
+                is_article = ai_result.is_article;
+                if title.as_ref().map(|t| t.trim().is_empty()).unwrap_or(true) {
+                    title = ai_result.title;
+                }
+                if let Some(author) = url_author.as_ref() {
+                    let author_key = author.split_whitespace().next().unwrap_or("");
+                    if !author_key.is_empty() {
+                        let author_key = author_key.to_lowercase();
+                        let has_author_tag = tags
+                            .iter()
+                            .any(|tag| tag.to_lowercase().contains(&author_key));
+                        if !has_author_tag {
+                            let normalized_author: String = author
+                                .to_lowercase()
+                                .chars()
+                                .filter(|c| c.is_ascii_alphanumeric() || *c == ' ' || *c == '-')
+                                .collect();
+                            let normalized_author = normalized_author.trim().to_string();
+                            if !normalized_author.is_empty()
+                                && !tags.contains(&normalized_author)
+                            {
+                                tags.push(normalized_author);
+                            }
+                        }
+                    }
+                }
+            }
+
+            let item = add_item(
+                AddItemInput {
+                    content: url.clone(),
+                    item_type: ItemType::Url,
+                    title,
+                    description,
+                    summary: if summary.is_empty() { None } else { Some(summary) },
+                    image_url: url_image.clone(),
+                    source_url: None,
+                    tags,
+                    embedding: if embedding.is_empty() {
+                        None
+                    } else {
+                        Some(embedding)
+                    },
+                    article_content: url_article_content.clone(),
+                    is_article,
+                },
+                state.clone(),
+            )?;
+
             saved_items.push(item);
         }
     }
-    
-    // Save selected text as a note with source_url
+
     if has_text {
-        if let Some(text) = &data.selected_text {
+        if let Some(text) = data.selected_text.as_ref() {
             let trimmed = text.trim();
             if !trimmed.is_empty() {
-                let now = chrono::Utc::now().to_rfc3339();
-                let id = format!(
-                    "item-{}-{}",
-                    chrono::Utc::now().timestamp_millis(),
-                    &uuid::Uuid::new_v4().to_string()[..8]
-                );
-                
-                let item = Item {
-                    id: id.clone(),
-                    item_type: ItemType::Note,
-                    content: trimmed.to_string(),
-                    title: None,
-                    description: None,
-                    summary: None,
-                    image_url: None,
-                    source_url: source_url.clone(),
-                    tags: vec![],
-                    embedding: None,
-                    created_at: now.clone(),
-                    updated_at: now.clone(),
-                    image_external: false,
-                    colors: vec![],
-                    article_content: None,
-                    is_article: false,
-                };
-                
-                // Encrypt and save
-                let json = serde_json::to_string(&item).map_err(|e| e.to_string())?;
-                let encrypted_data = crypto::encrypt(&json, &key).map_err(|e| e.to_string())?;
-                
-                let encrypted_item = EncryptedItem {
-                    id,
-                    encrypted_data,
-                    created_at: now.clone(),
-                    updated_at: now,
-                };
-                
-                state.db.save_item(&encrypted_item).map_err(|e| e.to_string())?;
-                
-                // Index in FTS
-                let fts_entry = FtsEntry {
-                    item_id: item.id.clone(),
-                    title: String::new(),
-                    description: trimmed.chars().take(500).collect(), // Use content as description for search
-                    summary: String::new(),
-                    tags: String::new(),
-                };
-                state.db.index_fts(&fts_entry).ok();
-                
+                let mut title: Option<String> = None;
+                let mut tags = vec!["note".to_string()];
+                let mut summary = String::new();
+                let mut embedding: Vec<f32> = Vec::new();
+
+                if let Ok(ai_result) = process_with_ai(
+                    trimmed.to_string(),
+                    ItemType::Note,
+                    None,
+                    None,
+                )
+                .await
+                {
+                    tags = ai_result.tags;
+                    summary = ai_result.summary;
+                    embedding = ai_result.embedding;
+                    if title.as_ref().map(|t| t.trim().is_empty()).unwrap_or(true) {
+                        title = ai_result.title;
+                    }
+                }
+
+                let item = add_item(
+                    AddItemInput {
+                        content: trimmed.to_string(),
+                        item_type: ItemType::Note,
+                        title,
+                        description: None,
+                        summary: if summary.is_empty() { None } else { Some(summary) },
+                        image_url: None,
+                        source_url: source_url.clone(),
+                        tags,
+                        embedding: if embedding.is_empty() {
+                            None
+                        } else {
+                            Some(embedding)
+                        },
+                        article_content: None,
+                        is_article: false,
+                    },
+                    state.clone(),
+                )?;
+
                 saved_items.push(item);
             }
         }
     }
-    
+
     if saved_items.is_empty() {
         Err("No items were saved".to_string())
     } else {

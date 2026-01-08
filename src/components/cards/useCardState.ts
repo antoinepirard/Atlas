@@ -32,7 +32,8 @@ export function useCardState({
 
   const handleClick = useCallback(
     (e: React.MouseEvent) => {
-      if (isMultiSelectMode && onSelect) {
+      const isModifierClick = e.metaKey || e.ctrlKey;
+      if ((isMultiSelectMode || isModifierClick) && onSelect) {
         e.preventDefault();
         e.stopPropagation();
         onSelect(item.id);
@@ -79,4 +80,3 @@ export function useCardState({
     handleHoverEnd,
   };
 }
-
