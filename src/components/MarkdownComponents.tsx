@@ -71,4 +71,3 @@ export const markdownComponents: Partial<Components> = {
   em: ({ children }) => <em className="italic">{children}</em>,
   hr: () => <hr className="my-6 border-stone-300" />,
 };
-

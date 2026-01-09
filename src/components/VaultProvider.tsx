@@ -26,7 +26,10 @@ interface VaultContextValue {
   lock: () => Promise<void>;
   setAutoLockMinutes: (minutes: number) => Promise<void>;
   resetVault: () => Promise<void>;
-  switchVault: (path: string, mode: "move" | "switch" | "create") => Promise<void>;
+  switchVault: (
+    path: string,
+    mode: "move" | "switch" | "create"
+  ) => Promise<void>;
   refreshStatus: () => Promise<void>;
   backupSettings: BackupSettings | null;
   refreshBackupSettings: () => Promise<void>;
@@ -295,13 +298,16 @@ export function VaultProvider({ children }: VaultProviderProps) {
       clearInterval(backupTimerRef.current);
     }
 
-    backupTimerRef.current = window.setInterval(async () => {
-      try {
-        await runBackup();
-      } catch (error) {
-        console.error("Failed to run scheduled backup:", error);
-      }
-    }, BACKUP_INTERVAL_MINUTES * 60 * 1000);
+    backupTimerRef.current = window.setInterval(
+      async () => {
+        try {
+          await runBackup();
+        } catch (error) {
+          console.error("Failed to run scheduled backup:", error);
+        }
+      },
+      BACKUP_INTERVAL_MINUTES * 60 * 1000
+    );
 
     return () => {
       if (backupTimerRef.current) {

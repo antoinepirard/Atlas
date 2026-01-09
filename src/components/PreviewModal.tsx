@@ -340,7 +340,13 @@ export function PreviewModal({
                                 "figure",
                                 "figcaption",
                               ],
-                              ALLOWED_ATTR: ["href", "target", "rel", "src", "alt"],
+                              ALLOWED_ATTR: [
+                                "href",
+                                "target",
+                                "rel",
+                                "src",
+                                "alt",
+                              ],
                             }),
                           }}
                         />
@@ -404,8 +410,8 @@ export function PreviewModal({
                     (item.type === "note"
                       ? "Note"
                       : item.type === "url"
-                      ? getDomain(item.content)
-                      : "Image")}
+                        ? getDomain(item.content)
+                        : "Image")}
                 </h2>
 
                 {/* Date */}
@@ -544,8 +550,8 @@ export function PreviewModal({
                       {youtubeVideoId
                         ? "Open on YouTube"
                         : xPostInfo
-                        ? "Open on X"
-                        : "Open Link"}
+                          ? "Open on X"
+                          : "Open Link"}
                       <ArrowTopRightOnSquareIcon className="w-4 h-4" />
                     </a>
                   )}

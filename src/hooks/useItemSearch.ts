@@ -192,4 +192,3 @@ export function useItemSearch(items: Item[]): UseItemSearchReturn {
     handleFilterType,
   };
 }
-

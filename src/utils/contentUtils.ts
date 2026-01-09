@@ -22,7 +22,7 @@ export function detectType(content: string): ItemType {
  */
 export function isGenericTitle(title: string | undefined): boolean {
   if (!title || title.trim() === "") return true;
-  
+
   const filenamePatterns = [
     /^IMG[_-]?\d+/i, // IMG_1234, IMG-1234
     /^DSC[_-]?\d+/i, // DSC_1234
@@ -33,7 +33,6 @@ export function isGenericTitle(title: string | undefined): boolean {
     /^capture[_-]?\d*/i, // capture_1
     /\.(jpg|jpeg|png|gif|webp|heic|bmp|tiff?)$/i, // ends with image extension
   ];
-  
+
   return filenamePatterns.some((pattern) => pattern.test(title));
 }
-

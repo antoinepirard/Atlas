@@ -228,7 +228,9 @@ export async function getBackupSettings(): Promise<BackupSettings> {
   return invoke("get_backup_settings");
 }
 
-export async function setBackupEnabled(enabled: boolean): Promise<BackupSettings> {
+export async function setBackupEnabled(
+  enabled: boolean
+): Promise<BackupSettings> {
   return invoke("set_backup_enabled", { enabled });
 }
 

@@ -1029,8 +1029,8 @@ export function SettingsModal({ isOpen, onClose }: SettingsModalProps) {
                             isOverBudget
                               ? "bg-red-50 border-red-200"
                               : isNearBudget
-                              ? "bg-amber-50 border-amber-200"
-                              : "bg-stone-50 border-stone-200"
+                                ? "bg-amber-50 border-amber-200"
+                                : "bg-stone-50 border-stone-200"
                           }`}
                         >
                           {/* Current month status */}
@@ -1048,8 +1048,8 @@ export function SettingsModal({ isOpen, onClose }: SettingsModalProps) {
                                     isOverBudget
                                       ? "text-red-600"
                                       : isNearBudget
-                                      ? "text-amber-600"
-                                      : "text-stone-600"
+                                        ? "text-amber-600"
+                                        : "text-stone-600"
                                   }`}
                                 >
                                   ${currentMonthSpent.toFixed(4)} / $
@@ -1062,8 +1062,8 @@ export function SettingsModal({ isOpen, onClose }: SettingsModalProps) {
                                     isOverBudget
                                       ? "bg-red-500"
                                       : isNearBudget
-                                      ? "bg-amber-500"
-                                      : "bg-emerald-500"
+                                        ? "bg-amber-500"
+                                        : "bg-emerald-500"
                                   }`}
                                   style={{
                                     width: `${Math.min(
@@ -1578,8 +1578,8 @@ export function SettingsModal({ isOpen, onClose }: SettingsModalProps) {
                                 {isCheckingAccess
                                   ? "Checking..."
                                   : accessibilityGranted
-                                  ? "Access granted"
-                                  : "Access required"}
+                                    ? "Access granted"
+                                    : "Access required"}
                               </p>
                               <p
                                 className={`text-xs mt-0.5 ${

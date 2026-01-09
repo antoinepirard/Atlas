@@ -10,7 +10,11 @@ import {
   FolderIcon,
 } from "@heroicons/react/24/outline";
 import { useVault } from "./VaultProvider";
-import { getStoragePath, pickStorageFolder, startWindowDrag } from "../lib/tauri";
+import {
+  getStoragePath,
+  pickStorageFolder,
+  startWindowDrag,
+} from "../lib/tauri";
 
 type SetupStep = "password" | "recovery";
 
@@ -54,8 +58,8 @@ function PasswordStrength({ password }: { password: string }) {
             strength.level <= 2
               ? "text-red-500"
               : strength.level === 3
-              ? "text-yellow-600"
-              : "text-green-600"
+                ? "text-yellow-600"
+                : "text-green-600"
           }`}
         >
           {strength.label}
@@ -190,7 +194,7 @@ function stripVaultDbPath(path: string): string {
     return path.slice(0, -"/vault.db".length);
   }
   if (path.endsWith("\\vault.db")) {
-    return path.slice(0, -("\\vault.db".length));
+    return path.slice(0, -"\\vault.db".length);
   }
   return path;
 }
@@ -300,7 +304,9 @@ export function VaultSetup() {
       if (!selectedPath) return;
       setStoragePath(selectedPath);
     } catch (err) {
-      setError(err instanceof Error ? err.message : "Failed to choose location");
+      setError(
+        err instanceof Error ? err.message : "Failed to choose location"
+      );
       console.error(err);
     } finally {
       setIsPickingLocation(false);

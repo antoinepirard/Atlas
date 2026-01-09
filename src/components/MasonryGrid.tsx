@@ -1,4 +1,11 @@
-import { useMemo, ReactNode, useRef, useEffect, useCallback, useState } from 'react';
+import {
+  useMemo,
+  ReactNode,
+  useRef,
+  useEffect,
+  useCallback,
+  useState,
+} from "react";
 
 interface MasonryGridProps {
   children: ReactNode[];
@@ -48,28 +55,31 @@ export function MasonryGrid({
 
   const columnContent = useMemo(() => {
     const cols: ReactNode[][] = Array.from({ length: columns }, () => []);
-    
+
     children.forEach((child, index) => {
       cols[index % columns].push(child);
     });
-    
+
     return cols;
   }, [children, columns]);
 
   // Infinite scroll with Intersection Observer
-  const handleIntersect = useCallback((entries: IntersectionObserverEntry[]) => {
-    const [entry] = entries;
-    if (entry.isIntersecting && hasMore && !isLoadingMore && onLoadMore) {
-      onLoadMore();
-    }
-  }, [hasMore, isLoadingMore, onLoadMore]);
+  const handleIntersect = useCallback(
+    (entries: IntersectionObserverEntry[]) => {
+      const [entry] = entries;
+      if (entry.isIntersecting && hasMore && !isLoadingMore && onLoadMore) {
+        onLoadMore();
+      }
+    },
+    [hasMore, isLoadingMore, onLoadMore]
+  );
 
   useEffect(() => {
     if (!onLoadMore) return;
 
     observerRef.current = new IntersectionObserver(handleIntersect, {
       root: null,
-      rootMargin: '200px', // Start loading before user reaches bottom
+      rootMargin: "200px", // Start loading before user reaches bottom
       threshold: 0,
     });
 
@@ -88,13 +98,13 @@ export function MasonryGrid({
     <div ref={containerRef} className="w-full">
       <div
         className="grid w-full"
-        style={{ 
+        style={{
           gap: `${gap}px`,
-          gridTemplateColumns: `repeat(${columns}, minmax(0, 1fr))`
+          gridTemplateColumns: `repeat(${columns}, minmax(0, 1fr))`,
         }}
       >
         {columnContent.map((col, colIndex) => (
-          <div 
+          <div
             key={colIndex}
             className="flex flex-col min-w-0"
             style={{ gap: `${gap}px` }}
@@ -103,7 +113,7 @@ export function MasonryGrid({
           </div>
         ))}
       </div>
-      
+
       {/* Infinite scroll trigger */}
       {onLoadMore && (
         <div ref={loadMoreRef} className="w-full py-8 flex justify-center">
@@ -114,7 +124,9 @@ export function MasonryGrid({
             </div>
           )}
           {!hasMore && children.length > 0 && (
-            <span className="text-sm text-stone-400">You've reached the end</span>
+            <span className="text-sm text-stone-400">
+              You've reached the end
+            </span>
           )}
         </div>
       )}

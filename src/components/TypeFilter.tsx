@@ -1,4 +1,4 @@
-import type { ItemType } from '../types';
+import type { ItemType } from "../types";
 
 interface TypeFilterProps {
   value: ItemType | null;
@@ -6,10 +6,10 @@ interface TypeFilterProps {
 }
 
 const filters: { type: ItemType | null; label: string; shortcut: string }[] = [
-  { type: null, label: 'Everything', shortcut: '⌘1' },
-  { type: 'url', label: 'Links', shortcut: '⌘2' },
-  { type: 'image', label: 'Images', shortcut: '⌘3' },
-  { type: 'note', label: 'Notes', shortcut: '⌘4' },
+  { type: null, label: "Everything", shortcut: "⌘1" },
+  { type: "url", label: "Links", shortcut: "⌘2" },
+  { type: "image", label: "Images", shortcut: "⌘3" },
+  { type: "note", label: "Notes", shortcut: "⌘4" },
 ];
 
 export function TypeFilter({ value, onChange }: TypeFilterProps) {
@@ -24,8 +24,8 @@ export function TypeFilter({ value, onChange }: TypeFilterProps) {
             title={shortcut}
             className={`px-3 py-1.5 bg-white text-sm transition-all rounded-full ${
               isActive
-                ? 'text-orange-600 border-b-2 border-orange-500 font-medium'
-                : 'text-stone-400 hover:text-stone-600'
+                ? "text-orange-600 border-b-2 border-orange-500 font-medium"
+                : "text-stone-400 hover:text-stone-600"
             }`}
           >
             {label}
@@ -35,4 +35,3 @@ export function TypeFilter({ value, onChange }: TypeFilterProps) {
     </div>
   );
 }
-

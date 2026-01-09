@@ -1,7 +1,5 @@
 import { motion } from "motion/react";
-import {
-  TrashIcon,
-} from "@heroicons/react/24/outline";
+import { TrashIcon } from "@heroicons/react/24/outline";
 import type { CardActionsProps } from "./types";
 
 export function CardActions({

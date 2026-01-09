@@ -1,4 +1,4 @@
-export type ItemType = 'url' | 'image' | 'note';
+export type ItemType = "url" | "image" | "note";
 
 export interface Item {
   id: string;
@@ -144,14 +144,14 @@ export interface QuickCaptureData {
 // Smart Search Types
 
 /** Filter kind for parsed tokens */
-export type FilterKind = 'date' | 'type' | 'color' | 'tag';
+export type FilterKind = "date" | "type" | "color" | "tag";
 
 /** A single parsed token from the search query */
 export interface ParsedToken {
   /** Original text of the token */
   text: string;
   /** Whether this token is a filter or plain text */
-  type: 'filter' | 'text';
+  type: "filter" | "text";
   /** The kind of filter if type is 'filter' */
   filterKind?: FilterKind;
   /** Confidence score (0-1), 1.0 for deterministic matches */

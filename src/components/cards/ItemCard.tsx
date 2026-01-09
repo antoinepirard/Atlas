@@ -54,4 +54,3 @@ export function ItemCard({
   // Default to note
   return <NoteCard {...baseProps} />;
 }
-

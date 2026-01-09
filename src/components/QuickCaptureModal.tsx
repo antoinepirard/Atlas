@@ -306,8 +306,8 @@ export function QuickCaptureModal({
                         saveMode === "both"
                           ? "Both"
                           : saveMode === "url"
-                          ? "Link"
-                          : "Note"
+                            ? "Link"
+                            : "Note"
                       }`
                     )}
                   </button>

@@ -124,8 +124,8 @@ export function AddContentModal({
     mode === "auto"
       ? detectedType(displayContent)
       : mode === "image"
-      ? "note"
-      : mode;
+        ? "note"
+        : mode;
 
   return (
     <AnimatePresence>
@@ -231,8 +231,8 @@ export function AddContentModal({
                         mode === "url"
                           ? "Paste a URL..."
                           : mode === "note"
-                          ? "Write a note..."
-                          : "Paste a URL or write a note..."
+                            ? "Write a note..."
+                            : "Paste a URL or write a note..."
                       }
                       rows={4}
                       className="w-full px-4 py-3 bg-stone-50 border border-stone-200 rounded-xl text-stone-800 placeholder-stone-400 focus:outline-none focus:ring-2 focus:ring-amber-400/50 focus:border-amber-400 resize-none"

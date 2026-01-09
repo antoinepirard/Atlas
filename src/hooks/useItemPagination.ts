@@ -95,4 +95,3 @@ export function useItemPagination(): UseItemPaginationReturn {
     setTotalCount,
   };
 }
-

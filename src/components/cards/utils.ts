@@ -31,11 +31,11 @@ export function getXPostInfo(url: string): XPostInfo | null {
 export function formatDate(dateString: string): string {
   const date = new Date(dateString);
   const now = new Date();
-  
+
   // Compare calendar dates (ignoring time of day)
   const dateDay = new Date(date.getFullYear(), date.getMonth(), date.getDate());
   const today = new Date(now.getFullYear(), now.getMonth(), now.getDate());
-  
+
   const diffMs = today.getTime() - dateDay.getTime();
   const diffDays = Math.round(diffMs / (1000 * 60 * 60 * 24));
 
@@ -55,4 +55,3 @@ export function getDomain(url: string): string {
     return "";
   }
 }
-

@@ -1,4 +1,4 @@
-import { motion, AnimatePresence } from 'motion/react';
+import { motion, AnimatePresence } from "motion/react";
 
 interface PasteIndicatorProps {
   isVisible: boolean;
@@ -23,4 +23,3 @@ export function PasteIndicator({ isVisible }: PasteIndicatorProps) {
     </AnimatePresence>
   );
 }
-

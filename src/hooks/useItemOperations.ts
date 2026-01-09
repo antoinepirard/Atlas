@@ -353,7 +353,7 @@ export function useItemOperations(
           article_content: articleContent ?? null,
           is_article:
             item.type === "url"
-              ? aiResult.is_article ?? item.is_article ?? false
+              ? (aiResult.is_article ?? item.is_article ?? false)
               : item.is_article,
         };
 
