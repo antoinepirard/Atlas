@@ -1,24 +1,17 @@
 import { useState, useCallback, useEffect, useRef } from "react";
-import { motion, AnimatePresence } from "motion/react";
-import {
-  PlusIcon,
-  LockClosedIcon,
-  Cog6ToothIcon,
-} from "@heroicons/react/24/outline";
 import { listen } from "@tauri-apps/api/event";
-import { SearchBar } from "./SearchBar";
-import { MasonryGrid } from "./MasonryGrid";
-import { ItemCard } from "./cards";
 import { AddContentModal } from "./AddContentModal";
 import { PreviewModal } from "./PreviewModal";
 import { SettingsModal } from "./SettingsModal";
-import { TypeFilter } from "./TypeFilter";
 import { PasteIndicator } from "./PasteIndicator";
 import { UpdateToast } from "./UpdateToast";
 import { SelectionActionBar } from "./SelectionActionBar";
+import { AtlasHeader } from "./atlas/AtlasHeader";
+import { AtlasContent } from "./atlas/AtlasContent";
 import type { QuickCaptureData } from "./QuickCaptureModal";
 import { useVault } from "./VaultProvider";
 import { useAtlas } from "../hooks/useAtlas";
+import { useMultiSelect } from "../hooks/useMultiSelect";
 import { toggleMaximize } from "../lib/tauri";
 import type { Item } from "../types";
 import { convertClipboardHtml } from "../utils/htmlToText";
@@ -30,12 +23,6 @@ export function AtlasApp() {
   const [isSettingsOpen, setIsSettingsOpen] = useState(false);
   const [isPasting, setIsPasting] = useState(false);
   const [selectedItem, setSelectedItem] = useState<Item | null>(null);
-
-  // Multi-select state
-  const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
-  const [isMultiSelectMode, setIsMultiSelectMode] = useState(false);
-  const [isDeleting, setIsDeleting] = useState(false);
-  const [isEnriching, setIsEnriching] = useState(false);
 
   const {
     items,
@@ -58,11 +45,19 @@ export function AtlasApp() {
     refresh,
   } = useAtlas();
 
+  const {
+    selectedIds,
+    isMultiSelectMode,
+    isDeleting,
+    isEnriching,
+    handleSelect,
+    clearSelection,
+    selectAll,
+    handleBulkDelete,
+    handleBulkEnrich,
+  } = useMultiSelect({ items, deleteItems, enrichItems });
+
   const pendingRefreshRef = useRef(false);
-  const multiSelectTimerRef = useRef<ReturnType<typeof setTimeout> | null>(
-    null
-  );
-  const multiSelectBlockedRef = useRef(false);
 
   useEffect(() => {
     const unlisten = listen("items-updated", () => {
@@ -91,135 +86,6 @@ export function AtlasApp() {
       document.removeEventListener("visibilitychange", handleVisibilityChange);
     };
   }, [refresh]);
-
-  // Multi-select handlers
-  const handleSelect = useCallback((id: string) => {
-    setSelectedIds((prev) => {
-      const next = new Set(prev);
-      if (next.has(id)) {
-        next.delete(id);
-      } else {
-        next.add(id);
-      }
-      return next;
-    });
-  }, []);
-
-  const clearSelection = useCallback(() => {
-    setSelectedIds(new Set());
-  }, []);
-
-  const selectAll = useCallback(() => {
-    if (items.length === 0) return;
-    setSelectedIds(new Set(items.map((item) => item.id)));
-  }, [items]);
-
-  const handleBulkDelete = useCallback(async () => {
-    if (selectedIds.size === 0) return;
-    setIsDeleting(true);
-    await deleteItems(Array.from(selectedIds));
-    setSelectedIds(new Set());
-    setIsDeleting(false);
-  }, [selectedIds, deleteItems]);
-
-  const handleBulkEnrich = useCallback(async () => {
-    if (selectedIds.size === 0 || isEnriching) return;
-
-    if (selectedIds.size > 200) {
-      const confirmed = window.confirm(
-        `Enriching ${selectedIds.size} items may use a lot of AI credits. Continue?`
-      );
-      if (!confirmed) return;
-    }
-
-    const selectedItems = items.filter((item) => selectedIds.has(item.id));
-    if (selectedItems.length === 0) return;
-
-    setIsEnriching(true);
-    try {
-      await enrichItems(selectedItems);
-    } finally {
-      setIsEnriching(false);
-    }
-  }, [selectedIds, isEnriching, items, enrichItems]);
-
-  // Track CMD key for multi-select mode
-  useEffect(() => {
-    const multiSelectDelayMs = 200;
-
-    const clearMultiSelectTimer = () => {
-      if (multiSelectTimerRef.current) {
-        clearTimeout(multiSelectTimerRef.current);
-        multiSelectTimerRef.current = null;
-      }
-    };
-
-    const handleKeyDown = (e: KeyboardEvent) => {
-      // Escape to clear selection
-      if (e.key === "Escape" && selectedIds.size > 0) {
-        clearSelection();
-        return;
-      }
-
-      const target = e.target as HTMLElement | null;
-      const isTypingTarget =
-        target &&
-        (target.tagName === "INPUT" ||
-          target.tagName === "TEXTAREA" ||
-          target.isContentEditable);
-
-      if (isTypingTarget) {
-        return;
-      }
-
-      if (e.key === "Meta" || e.key === "Control") {
-        if (isMultiSelectMode || multiSelectTimerRef.current) {
-          return;
-        }
-
-        multiSelectBlockedRef.current = false;
-        multiSelectTimerRef.current = setTimeout(() => {
-          multiSelectTimerRef.current = null;
-          if (!multiSelectBlockedRef.current) {
-            setIsMultiSelectMode(true);
-          }
-        }, multiSelectDelayMs);
-        return;
-      }
-
-      if (e.metaKey || e.ctrlKey) {
-        multiSelectBlockedRef.current = true;
-        clearMultiSelectTimer();
-        setIsMultiSelectMode(false);
-      }
-    };
-
-    const handleKeyUp = (e: KeyboardEvent) => {
-      if (e.key === "Meta" || e.key === "Control") {
-        multiSelectBlockedRef.current = false;
-        clearMultiSelectTimer();
-        setIsMultiSelectMode(false);
-      }
-    };
-
-    // Also handle when window loses focus (cmd+tab etc)
-    const handleBlur = () => {
-      multiSelectBlockedRef.current = false;
-      clearMultiSelectTimer();
-      setIsMultiSelectMode(false);
-    };
-
-    window.addEventListener("keydown", handleKeyDown);
-    window.addEventListener("keyup", handleKeyUp);
-    window.addEventListener("blur", handleBlur);
-
-    return () => {
-      window.removeEventListener("keydown", handleKeyDown);
-      window.removeEventListener("keyup", handleKeyUp);
-      window.removeEventListener("blur", handleBlur);
-      clearMultiSelectTimer();
-    };
-  }, [selectedIds.size, clearSelection, isMultiSelectMode]);
 
   const handleAddContent = useCallback(
     async (content: string) => {
@@ -507,152 +373,36 @@ export function AtlasApp() {
     <div className="min-h-screen bg-stone-100">
       <PasteIndicator isVisible={isPasting} />
 
-      <header className="sticky top-0 z-40 bg-stone-100/95 backdrop-blur-sm border-b border-stone-200/50">
-        {/* Draggable title bar region - uses data-tauri-drag-region for native behavior */}
-        <div
-          data-tauri-drag-region
-          onDoubleClick={() => toggleMaximize()}
-          className="h-7 w-full cursor-default select-none"
-        />
+      <AtlasHeader
+        isScrolled={isScrolled}
+        filterType={filterType}
+        onFilterType={handleFilterType}
+        searchQuery={searchQuery}
+        onSearch={handleSearch}
+        isSearching={isSearching}
+        allTags={allTags}
+        onOpenSettings={() => setIsSettingsOpen(true)}
+        onOpenAdd={() => setIsAddModalOpen(true)}
+        onLock={() => lock()}
+        autoLockMinutes={status.auto_lock_minutes}
+        onToggleMaximize={() => toggleMaximize()}
+      />
 
-        {/* Toolbar row - settings on left after traffic lights, controls on right */}
-        <div className="flex items-center justify-between px-4 py-2">
-          <motion.button
-            whileHover={{ scale: 1.05 }}
-            whileTap={{ scale: 0.95 }}
-            onClick={() => setIsSettingsOpen(true)}
-            className="p-2 text-stone-400 hover:text-stone-600 hover:bg-stone-200/50 rounded-lg transition-colors"
-            title="Settings"
-          >
-            <Cog6ToothIcon className="w-5 h-5" />
-          </motion.button>
-
-          <div className="flex items-center gap-3">
-            <TypeFilter value={filterType} onChange={handleFilterType} />
-
-            <motion.button
-              whileHover={{ scale: 1.02 }}
-              whileTap={{ scale: 0.98 }}
-              onClick={() => setIsAddModalOpen(true)}
-              title="Add content (⌘N)"
-              className="flex items-center gap-2 px-4 py-2 bg-stone-900 text-white rounded-full hover:bg-stone-800 transition-colors text-sm"
-            >
-              <PlusIcon className="w-4 h-4" />
-              <span>Add</span>
-            </motion.button>
-
-            <motion.button
-              whileHover={{ scale: 1.05 }}
-              whileTap={{ scale: 0.95 }}
-              onClick={() => lock()}
-              className="group relative p-2 text-stone-400 hover:text-stone-600 transition-colors"
-              title={`Lock vault (auto-locks in ${status.auto_lock_minutes} min)`}
-            >
-              <LockClosedIcon className="w-5 h-5" />
-              <span className="absolute -bottom-8 right-0 px-2 py-1 text-xs text-stone-500 bg-white rounded shadow-sm border border-stone-100 opacity-0 group-hover:opacity-100 transition-opacity whitespace-nowrap">
-                Auto-lock: {status.auto_lock_minutes}min
-              </span>
-            </motion.button>
-          </div>
-        </div>
-
-        {/* Search bar */}
-        <div
-          className={`px-6 max-w-[1800px] mx-auto transition-all duration-300 ${
-            isScrolled ? "pb-3 pt-1" : "pb-6 pt-2"
-          }`}
-        >
-          <SearchBar
-            value={searchQuery}
-            onChange={handleSearch}
-            isLoading={isSearching}
-            placeholder="Search..."
-            compact={isScrolled}
-            existingTags={allTags}
-          />
-        </div>
-      </header>
-
-      <main className="max-w-[1800px] mx-auto px-6 py-8">
-        <AnimatePresence mode="popLayout">
-          {items.length === 0 && !isLoading && !isSearching && !searchQuery ? (
-            <motion.div
-              initial={{ opacity: 0, y: 20 }}
-              animate={{ opacity: 1, y: 0 }}
-              exit={{ opacity: 0, y: -20 }}
-              className="flex flex-col items-center justify-center py-24 text-center"
-            >
-              <div className="w-24 h-24 rounded-3xl bg-gradient-to-br from-amber-100 to-orange-100 flex items-center justify-center mb-8">
-                <span className="text-5xl">🧠</span>
-              </div>
-              <h2
-                className="text-2xl text-stone-600 mb-3"
-                style={{
-                  fontFamily: "'Newsreader', 'Georgia', serif",
-                  fontStyle: "italic",
-                }}
-              >
-                Your mind is empty
-              </h2>
-              <p className="text-stone-400 max-w-md mb-8 text-sm">
-                Paste anything to add it. URLs, images, notes—just press ⌘V
-                anywhere, or ⌘N to add content.
-              </p>
-              <button
-                onClick={() => setIsAddModalOpen(true)}
-                className="px-6 py-3 bg-stone-900 text-white rounded-full hover:bg-stone-800 transition-colors text-sm"
-              >
-                Add your first item
-              </button>
-            </motion.div>
-          ) : items.length === 0 && !isSearching && searchQuery ? (
-            <motion.div
-              initial={{ opacity: 0, y: 20 }}
-              animate={{ opacity: 1, y: 0 }}
-              exit={{ opacity: 0, y: -20 }}
-              className="flex flex-col items-center justify-center py-24 text-center"
-            >
-              <p className="text-stone-400 text-sm">
-                No results found for "{searchQuery}"
-              </p>
-            </motion.div>
-          ) : (
-            <MasonryGrid
-              gap={20}
-              onLoadMore={loadMore}
-              hasMore={hasMore}
-              isLoadingMore={isLoadingMore}
-            >
-              {items.map((item) => (
-                <motion.div
-                  key={item.id}
-                  initial={{ opacity: 0 }}
-                  animate={{ opacity: 1 }}
-                  exit={{ opacity: 0 }}
-                  transition={{ duration: 0.1 }}
-                >
-                  <ItemCard
-                    item={item}
-                    onDelete={() => deleteItem(item.id)}
-                    onClick={() => setSelectedItem(item)}
-                    isSelected={selectedIds.has(item.id)}
-                    isMultiSelectMode={
-                      isMultiSelectMode || selectedIds.size > 0
-                    }
-                    onSelect={handleSelect}
-                  />
-                </motion.div>
-              ))}
-            </MasonryGrid>
-          )}
-        </AnimatePresence>
-
-        {isLoading && items.length === 0 && (
-          <div className="flex items-center justify-center py-24">
-            <div className="w-8 h-8 border-2 border-stone-200 border-t-stone-500 rounded-full animate-spin" />
-          </div>
-        )}
-      </main>
+      <AtlasContent
+        items={items}
+        isLoading={isLoading}
+        isSearching={isSearching}
+        searchQuery={searchQuery}
+        hasMore={hasMore}
+        isLoadingMore={isLoadingMore}
+        onLoadMore={loadMore}
+        onDeleteItem={(id) => deleteItem(id)}
+        onSelectItem={setSelectedItem}
+        selectedIds={selectedIds}
+        isMultiSelectMode={isMultiSelectMode}
+        onToggleSelect={handleSelect}
+        onOpenAddModal={() => setIsAddModalOpen(true)}
+      />
 
       <AddContentModal
         isOpen={isAddModalOpen}
