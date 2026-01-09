@@ -25,9 +25,9 @@ jobs:
           echo "body<<EOF" >> "$GITHUB_OUTPUT"
           echo "## Changes" >> "$GITHUB_OUTPUT"
           if [ -n "$PREV_TAG" ]; then
-            git log --pretty=format:"- %s" "${PREV_TAG}..HEAD" --no-merges --invert-grep --grep="^Bump version" >> "$GITHUB_OUTPUT"
+            git log --pretty=format:"- %s" "${PREV_TAG}..HEAD" --no-merges --invert-grep --grep="^Bump version" --invert-grep --grep="^v[0-9]" >> "$GITHUB_OUTPUT"
           else
-            git log --pretty=format:"- %s" HEAD --no-merges --invert-grep --grep="^Bump version" >> "$GITHUB_OUTPUT"
+            git log --pretty=format:"- %s" HEAD --no-merges --invert-grep --grep="^Bump version" --invert-grep --grep="^v[0-9]" >> "$GITHUB_OUTPUT"
           fi
           echo "" >> "$GITHUB_OUTPUT"
           echo "EOF" >> "$GITHUB_OUTPUT"
