@@ -1,4 +1,5 @@
 import { useMemo, useEffect, useState, useCallback } from "react";
+import DOMPurify from "dompurify";
 import { motion, AnimatePresence } from "motion/react";
 import {
   XMarkIcon,
@@ -314,7 +315,33 @@ export function PreviewModal({
                         <div
                           className="prose prose-stone prose-lg max-w-none prose-headings:text-stone-800 prose-a:text-amber-600 prose-a:no-underline hover:prose-a:underline"
                           dangerouslySetInnerHTML={{
-                            __html: item.article_content,
+                            __html: DOMPurify.sanitize(item.article_content, {
+                              ALLOWED_TAGS: [
+                                "p",
+                                "br",
+                                "strong",
+                                "b",
+                                "em",
+                                "i",
+                                "a",
+                                "ul",
+                                "ol",
+                                "li",
+                                "h1",
+                                "h2",
+                                "h3",
+                                "h4",
+                                "h5",
+                                "h6",
+                                "blockquote",
+                                "code",
+                                "pre",
+                                "img",
+                                "figure",
+                                "figcaption",
+                              ],
+                              ALLOWED_ATTR: ["href", "target", "rel", "src", "alt"],
+                            }),
                           }}
                         />
                       </article>

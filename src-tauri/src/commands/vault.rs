@@ -13,8 +13,47 @@ use crate::images;
 use chrono::Utc;
 use serde::{Deserialize, Serialize};
 use std::path::{Path, PathBuf};
+use std::sync::atomic::{AtomicU32, Ordering};
 use std::sync::Mutex;
+use std::time::Instant;
 use tauri::State;
+
+// Rate limiting for vault unlock attempts
+static FAILED_ATTEMPTS: AtomicU32 = AtomicU32::new(0);
+static LAST_FAILURE: Mutex<Option<Instant>> = Mutex::new(None);
+
+/// Check rate limit before allowing unlock attempt
+fn check_rate_limit() -> Result<(), String> {
+    let attempts = FAILED_ATTEMPTS.load(Ordering::Relaxed);
+    if attempts >= 3 {
+        if let Some(last) = *LAST_FAILURE.lock().unwrap() {
+            // Exponential backoff: 2s, 4s, 8s, 16s, 32s, 64s (max)
+            let delay_secs = 2u64.pow((attempts - 2).min(5));
+            let elapsed = last.elapsed().as_secs();
+            if elapsed < delay_secs {
+                let remaining = delay_secs - elapsed;
+                return Err(format!(
+                    "Too many failed attempts. Please wait {} second{}.",
+                    remaining,
+                    if remaining == 1 { "" } else { "s" }
+                ));
+            }
+        }
+    }
+    Ok(())
+}
+
+/// Record a failed unlock attempt
+fn record_failure() {
+    FAILED_ATTEMPTS.fetch_add(1, Ordering::Relaxed);
+    *LAST_FAILURE.lock().unwrap() = Some(Instant::now());
+}
+
+/// Reset the failure counter on successful unlock
+fn reset_failures() {
+    FAILED_ATTEMPTS.store(0, Ordering::Relaxed);
+    *LAST_FAILURE.lock().unwrap() = None;
+}
 
 /// Verification token to check password correctness
 const VERIFICATION_TOKEN: &str = "mymind-vault-ok";
@@ -279,56 +318,70 @@ pub fn create_vault(
 /// Unlock vault with password
 #[tauri::command]
 pub fn unlock_vault(password: String, state: State<VaultState>) -> Result<bool, String> {
+    // Check rate limit before attempting unlock
+    check_rate_limit()?;
+
     let config = state
         .db
         .get_vault_config()
         .map_err(|e| e.to_string())?
         .ok_or("Vault not found")?;
-    
+
     // Decode salt
     let salt = crypto::base64_to_bytes(&config.salt)
         .map_err(|e| format!("Invalid salt: {}", e))?;
-    
+
     // Derive key
     let key = crypto::derive_key(&password, &salt);
-    
+
     // Verify password
     match crypto::decrypt(&config.verification, &key) {
         Ok(decrypted) if decrypted == VERIFICATION_TOKEN => {
+            reset_failures();
             state.set_key(Some(key));
             state.unlock_ui();
             *state.auto_lock_minutes.lock().unwrap() = config.auto_lock_minutes;
             Ok(true)
         }
-        _ => Ok(false),
+        _ => {
+            record_failure();
+            Ok(false)
+        }
     }
 }
 
 /// Unlock vault with recovery phrase
 #[tauri::command]
 pub fn unlock_with_phrase(phrase: Vec<String>, state: State<VaultState>) -> Result<bool, String> {
+    // Check rate limit before attempting unlock
+    check_rate_limit()?;
+
     let config = state
         .db
         .get_vault_config()
         .map_err(|e| e.to_string())?
         .ok_or("Vault not found")?;
-    
+
     // Decode salt
     let salt = crypto::base64_to_bytes(&config.salt)
         .map_err(|e| format!("Invalid salt: {}", e))?;
-    
+
     // Derive key from phrase
     let key = crypto::phrase_to_key(&phrase, &salt);
-    
+
     // Verify
     match crypto::decrypt(&config.verification, &key) {
         Ok(decrypted) if decrypted == VERIFICATION_TOKEN => {
+            reset_failures();
             state.set_key(Some(key));
             state.unlock_ui();
             *state.auto_lock_minutes.lock().unwrap() = config.auto_lock_minutes;
             Ok(true)
         }
-        _ => Ok(false),
+        _ => {
+            record_failure();
+            Ok(false)
+        }
     }
 }
 
