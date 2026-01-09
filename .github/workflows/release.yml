@@ -14,6 +14,19 @@ jobs:
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+          fetch-tags: true
+
+      - name: Generate release notes
+        id: release_notes
+        run: |
+          PREV_TAG=$(git describe --tags --abbrev=0 HEAD^)
+          echo "body<<'EOF'" >> "$GITHUB_OUTPUT"
+          echo "## Changes" >> "$GITHUB_OUTPUT"
+          git log --pretty=format:"- %s" "${PREV_TAG}..HEAD" --no-merges --invert-grep --grep="^Bump version" >> "$GITHUB_OUTPUT"
+          echo "" >> "$GITHUB_OUTPUT"
+          echo "EOF" >> "$GITHUB_OUTPUT"
 
       - name: Install pnpm
         uses: pnpm/action-setup@v4
@@ -55,7 +68,7 @@ jobs:
         with:
           tagName: ${{ github.ref_name }}
           releaseName: "Atlas v__VERSION__"
-          releaseBody: "See the assets to download and install this version."
+          releaseBody: ${{ steps.release_notes.outputs.body }}
           releaseDraft: false
           prerelease: false
           # Generate updater artifacts (latest.json)
