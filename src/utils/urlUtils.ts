@@ -113,6 +113,12 @@ type MapLocation = {
   zoom?: number;
 };
 
+const MAP_LAT_LIMIT = 85.0511;
+
+function clampNumber(value: number, min: number, max: number): number {
+  return Math.min(Math.max(value, min), max);
+}
+
 function parseLatLonPair(input: string): { lat: number; lon: number } | null {
   const match = input.match(/(-?\d+(?:\.\d+)?)[, ]+(-?\d+(?:\.\d+)?)/);
   if (!match) return null;
@@ -134,13 +140,37 @@ function parseZoom(value: string | null): number | null {
 
 function extractMapLocation(url: URL): MapLocation | null {
   const atMatch = url.pathname.match(
-    /@(-?\d+(?:\.\d+)?),(-?\d+(?:\.\d+)?)(?:,(\d+(?:\.\d+)?))?z?/
+    /@(-?\d+(?:\.\d+)?),(-?\d+(?:\.\d+)?)(?:,([^/]+))?/
   );
   if (atMatch) {
     const lat = Number.parseFloat(atMatch[1]);
     const lon = Number.parseFloat(atMatch[2]);
     if (Number.isFinite(lat) && Number.isFinite(lon)) {
-      return { lat, lon, zoom: parseZoom(atMatch[3]) ?? undefined };
+      const rawZoom = atMatch[3] ?? null;
+      const zoom = rawZoom && rawZoom.includes("z") ? parseZoom(rawZoom) : null;
+      return { lat, lon, zoom: zoom ?? undefined };
+    }
+  }
+
+  const googleDataMatch = url.href.match(
+    /!3d(-?\d+(?:\.\d+)?)!4d(-?\d+(?:\.\d+)?)/i
+  );
+  if (googleDataMatch) {
+    const lat = Number.parseFloat(googleDataMatch[1]);
+    const lon = Number.parseFloat(googleDataMatch[2]);
+    if (Number.isFinite(lat) && Number.isFinite(lon)) {
+      return { lat, lon };
+    }
+  }
+
+  const googleLonLatMatch = url.href.match(
+    /!2d(-?\d+(?:\.\d+)?)!3d(-?\d+(?:\.\d+)?)/i
+  );
+  if (googleLonLatMatch) {
+    const lon = Number.parseFloat(googleLonLatMatch[1]);
+    const lat = Number.parseFloat(googleLonLatMatch[2]);
+    if (Number.isFinite(lat) && Number.isFinite(lon)) {
+      return { lat, lon };
     }
   }
 
@@ -192,15 +222,55 @@ function extractMapLocation(url: URL): MapLocation | null {
   return null;
 }
 
+export function getStaticMapUrls(url: string): string[] {
+  try {
+    const parsed = new URL(url);
+    const location = extractMapLocation(parsed);
+    if (!location) return [];
+
+    const zoom = Math.min(Math.max(location.zoom ?? 15, 3), 17);
+    const center = `${location.lat},${location.lon}`;
+    return [
+      `https://staticmap.openstreetmap.de/staticmap.php?center=${center}&zoom=${zoom}&size=800x500&markers=${center},red-pushpin`,
+      `https://maps.wikimedia.org/img/osm-intl,${zoom},${center},800x500.png`,
+    ];
+  } catch {
+    return [];
+  }
+}
+
 export function getStaticMapUrl(url: string): string | null {
+  const urls = getStaticMapUrls(url);
+  return urls[0] ?? null;
+}
+
+export function getMapEmbedUrl(url: string): string | null {
   try {
     const parsed = new URL(url);
     const location = extractMapLocation(parsed);
     if (!location) return null;
 
-    const zoom = Math.min(Math.max(location.zoom ?? 14, 3), 17);
-    const center = `${location.lat},${location.lon}`;
-    return `https://staticmap.openstreetmap.de/staticmap.php?center=${center}&zoom=${zoom}&size=800x500&markers=${center},red-pushpin`;
+    const zoom = Math.min(Math.max(location.zoom ?? 15, 3), 17);
+    const worldPixels = 256 * Math.pow(2, zoom);
+    const degreesPerPixel = 360 / worldPixels;
+    const halfWidth = (800 / 2) * degreesPerPixel;
+    const halfHeight = (500 / 2) * degreesPerPixel;
+
+    const left = clampNumber(location.lon - halfWidth, -180, 180);
+    const right = clampNumber(location.lon + halfWidth, -180, 180);
+    const top = clampNumber(
+      location.lat + halfHeight,
+      -MAP_LAT_LIMIT,
+      MAP_LAT_LIMIT
+    );
+    const bottom = clampNumber(
+      location.lat - halfHeight,
+      -MAP_LAT_LIMIT,
+      MAP_LAT_LIMIT
+    );
+    const marker = `${location.lat},${location.lon}`;
+
+    return `https://www.openstreetmap.org/export/embed.html?bbox=${left},${bottom},${right},${top}&layer=mapnik&marker=${marker}`;
   } catch {
     return null;
   }

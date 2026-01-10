@@ -1,55 +1,12 @@
-import { useCallback, useEffect, useMemo, useState } from "react";
-import DOMPurify from "dompurify";
-import {
-  ChevronLeftIcon,
-  ChevronRightIcon,
-  DocumentTextIcon,
-  LinkIcon,
-} from "@heroicons/react/24/outline";
+import { useState } from "react";
+import { ChevronLeftIcon, ChevronRightIcon } from "@heroicons/react/24/outline";
 import type { Item } from "../../types";
-import {
-  getDomain,
-  getSafeImageUrl,
-  getStaticMapUrl,
-} from "../../utils/urlUtils";
-import { SimpleNoteEditor } from "../SimpleNoteEditor";
+import { ImagePreview } from "./ImagePreview";
+import { NotePreview } from "./NotePreview";
+import { PlacePreview } from "./PlacePreview";
+import { UrlPreview } from "./UrlPreview";
 
 type XPostInfo = { username: string; postId: string } | null;
-
-const ARTICLE_SANITIZE_OPTIONS = {
-  ALLOWED_TAGS: [
-    "p",
-    "br",
-    "strong",
-    "b",
-    "em",
-    "i",
-    "a",
-    "ul",
-    "ol",
-    "li",
-    "h1",
-    "h2",
-    "h3",
-    "h4",
-    "h5",
-    "h6",
-    "blockquote",
-    "code",
-    "pre",
-    "table",
-    "thead",
-    "tbody",
-    "tr",
-    "th",
-    "td",
-    "span",
-    "img",
-    "figure",
-    "figcaption",
-  ],
-  ALLOWED_ATTR: ["href", "target", "rel", "src", "alt"],
-};
 
 interface PreviewContentProps {
   item: Item;
@@ -77,72 +34,8 @@ export function PreviewContent({
   xPostInfo,
 }: PreviewContentProps) {
   const [isHovering, setIsHovering] = useState(false);
-  const [editedContent, setEditedContent] = useState("");
-  const [isSaving, setIsSaving] = useState(false);
-  const [isReaderMode, setIsReaderMode] = useState(false);
-  const [urlImageError, setUrlImageError] = useState(false);
-
-  useEffect(() => {
-    if (item.type === "note") {
-      setEditedContent(item.content);
-    }
-  }, [item.id, item.type, item.content]);
-
-  useEffect(() => {
-    if (
-      item.type === "url" &&
-      item.article_content &&
-      (item.is_article || item.subtype === "code")
-    ) {
-      setIsReaderMode(true);
-    } else {
-      setIsReaderMode(false);
-    }
-  }, [item.id, item.type, item.is_article, item.article_content, item.subtype]);
-
-  useEffect(() => {
-    setUrlImageError(false);
-  }, [item.id]);
-
-  const hasChanges = item.type === "note" && editedContent !== item.content;
-
-  const handleSave = useCallback(async () => {
-    if (!onUpdateItem || !hasChanges) return;
-    setIsSaving(true);
-    try {
-      const updatedItem = {
-        ...item,
-        content: editedContent,
-        updated_at: new Date().toISOString(),
-      };
-      await onUpdateItem(updatedItem);
-    } finally {
-      setIsSaving(false);
-    }
-  }, [item, editedContent, onUpdateItem, hasChanges]);
-
   const showNavigation = onNavigate && totalItems > 1 && item.type !== "note";
   const isUrlPreview = item.type === "url" && !youtubeVideoId && !xPostInfo;
-  const hasRichContent =
-    isUrlPreview &&
-    item.article_content &&
-    (item.is_article || item.subtype === "code");
-  const richContentLabel = item.subtype === "code" ? "README" : "Reader Mode";
-  const isPlacePreview = isUrlPreview && item.subtype === "place";
-  const showStandardUrlPreview =
-    isUrlPreview && !isReaderMode && !isPlacePreview;
-  const staticMapUrl = useMemo(() => {
-    if (!isPlacePreview) return null;
-    return getStaticMapUrl(item.content);
-  }, [isPlacePreview, item.content]);
-  const mapImageUrl = item.image_url || staticMapUrl;
-  const safeMapImageUrl = mapImageUrl ? getSafeImageUrl(mapImageUrl) : null;
-  const placeTitle = item.title || getDomain(item.content);
-  const placeDetail = item.description || item.summary;
-  const fallbackTitle =
-    item.type === "url" ? item.title || getDomain(item.content) : "";
-  const fallbackSummary =
-    item.type === "url" ? item.summary || item.description : null;
 
   return (
     <div
@@ -181,18 +74,11 @@ export function PreviewContent({
       )}
 
       {item.type === "image" && (
-        <>
-          {isLoadingFullImage && (
-            <div className="absolute inset-0 flex items-center justify-center bg-stone-900/50">
-              <div className="w-8 h-8 border-2 border-white/30 border-t-white rounded-full animate-spin" />
-            </div>
-          )}
-          <img
-            src={fullImageUrl || item.image_url || item.content}
-            alt={item.title || "Image"}
-            className="max-w-full max-h-full object-contain"
-          />
-        </>
+        <ImagePreview
+          item={item}
+          fullImageUrl={fullImageUrl}
+          isLoadingFullImage={isLoadingFullImage}
+        />
       )}
 
       {item.type === "url" && youtubeVideoId && youtubeEmbedUrl && (
@@ -216,103 +102,15 @@ export function PreviewContent({
         </div>
       )}
 
-      {hasRichContent && (
-        <button
-          onClick={() => setIsReaderMode(!isReaderMode)}
-          className={`absolute top-4 right-4 px-3 py-1.5 rounded-lg text-sm font-medium shadow-sm transition-colors z-10 flex items-center gap-1.5 ${
-            isReaderMode
-              ? "bg-amber-500 text-white hover:bg-amber-600"
-              : "bg-white/90 text-stone-700 hover:bg-white"
-          }`}
-        >
-          <DocumentTextIcon className="w-4 h-4" />
-          {isReaderMode ? "Show Preview" : richContentLabel}
-        </button>
-      )}
-
-      {hasRichContent && isReaderMode && (
-        <div className="w-full h-full overflow-auto bg-stone-50">
-          <article className="max-w-2xl mx-auto px-8 py-12">
-            <h1 className="text-2xl font-bold text-stone-800 mb-6 leading-tight">
-              {item.title}
-            </h1>
-            <div
-              className="prose prose-stone prose-lg max-w-none prose-headings:text-stone-800 prose-a:text-amber-600 prose-a:no-underline hover:prose-a:underline"
-              dangerouslySetInnerHTML={{
-                __html: DOMPurify.sanitize(
-                  item.article_content ?? "",
-                  ARTICLE_SANITIZE_OPTIONS
-                ),
-              }}
-            />
-          </article>
-        </div>
-      )}
-
-      {isPlacePreview && (
-        <div className="w-full h-full relative">
-          {safeMapImageUrl && !urlImageError ? (
-            <img
-              src={safeMapImageUrl}
-              alt={placeTitle}
-              className="w-full h-full object-cover"
-              onError={() => setUrlImageError(true)}
-            />
-          ) : (
-            <div className="w-full h-full flex items-center justify-center bg-gradient-to-br from-emerald-950 via-stone-900 to-stone-950">
-              <LinkIcon className="w-16 h-16 text-emerald-200/60" />
-            </div>
-          )}
-          <div className="absolute inset-x-0 bottom-0 px-8 py-6 bg-gradient-to-t from-stone-900/80 via-stone-900/40 to-transparent">
-            <h2 className="text-xl font-semibold text-white/95">
-              {placeTitle}
-            </h2>
-            {placeDetail && (
-              <p className="text-sm text-stone-200/90 mt-1 line-clamp-2">
-                {placeDetail}
-              </p>
-            )}
-          </div>
-        </div>
-      )}
-
-      {showStandardUrlPreview && item.image_url && !urlImageError && (
-        <img
-          src={item.image_url}
-          alt={item.title || "Link preview"}
-          className="max-w-full max-h-full object-contain"
-          onError={() => setUrlImageError(true)}
-        />
-      )}
-
-      {showStandardUrlPreview && (!item.image_url || urlImageError) && (
-        <div className="flex flex-col items-center justify-center gap-4 p-8 text-stone-300 text-center">
-          <LinkIcon className="w-16 h-16" />
-          <div className="max-w-xl">
-            <p className="text-lg font-semibold text-stone-200">
-              {fallbackTitle}
-            </p>
-            {fallbackSummary ? (
-              <p className="text-sm text-stone-400 mt-2 line-clamp-3">
-                {fallbackSummary}
-              </p>
-            ) : (
-              <p className="text-sm text-stone-500 mt-2">
-                {getDomain(item.content)}
-              </p>
-            )}
-          </div>
-        </div>
-      )}
+      {isUrlPreview &&
+        (item.subtype === "place" ? (
+          <PlacePreview item={item} />
+        ) : (
+          <UrlPreview item={item} />
+        ))}
 
       {item.type === "note" && onUpdateItem && (
-        <SimpleNoteEditor
-          content={editedContent}
-          onChange={setEditedContent}
-          onSave={handleSave}
-          hasChanges={hasChanges}
-          isSaving={isSaving}
-        />
+        <NotePreview item={item} onUpdateItem={onUpdateItem} />
       )}
     </div>
   );

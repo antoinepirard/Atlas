@@ -30,7 +30,7 @@
       }
     ],
     "security": {
-      "csp": "default-src 'self' asset: tauri: data: blob:; script-src 'self' 'unsafe-eval'; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; img-src 'self' asset: data: blob: https:; font-src 'self' data: https://fonts.gstatic.com; connect-src 'self' https://api.openai.com https://publish.twitter.com; frame-src https://www.youtube-nocookie.com https://platform.twitter.com; media-src 'self' asset: data: blob: https:"
+      "csp": "default-src 'self' asset: tauri: data: blob:; script-src 'self' 'unsafe-eval'; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; img-src 'self' asset: data: blob: https:; font-src 'self' data: https://fonts.gstatic.com; connect-src 'self' https://api.openai.com https://publish.twitter.com; frame-src https://www.youtube-nocookie.com https://platform.twitter.com https://www.openstreetmap.org; media-src 'self' asset: data: blob: https:"
     }
   },
   "bundle": {
