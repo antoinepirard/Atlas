@@ -25,6 +25,8 @@ export function useItemSearch(items: Item[]): UseItemSearchReturn {
   const [isSearching, setIsSearching] = useState(false);
 
   const searchTimeoutRef = useRef<number | null>(null);
+  const parsedRemainingText = parsedQuery?.remainingText ?? "";
+  const hasParsedQuery = parsedQuery !== null;
 
   // Extract all unique tags from items for smart search autocomplete
   const allTags = useMemo(() => {
@@ -44,7 +46,7 @@ export function useItemSearch(items: Item[]): UseItemSearchReturn {
 
     // Use remainingText for semantic search (excludes filter tokens)
     // Only use raw searchQuery if no parsed query exists yet
-    const textToSearch = parsedQuery ? parsedQuery.remainingText : searchQuery;
+    const textToSearch = hasParsedQuery ? parsedRemainingText : searchQuery;
 
     if (!textToSearch.trim()) {
       // No text to search - clear semantic results but keep filters working
@@ -108,7 +110,7 @@ export function useItemSearch(items: Item[]): UseItemSearchReturn {
         clearTimeout(searchTimeoutRef.current);
       }
     };
-  }, [searchQuery, parsedQuery?.remainingText]);
+  }, [searchQuery, parsedRemainingText, hasParsedQuery]);
 
   // Filter items - now applies structured filters from ParsedQuery
   const filteredItems = useMemo((): SearchResult[] => {

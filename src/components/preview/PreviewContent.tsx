@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import DOMPurify from "dompurify";
 import {
   ChevronLeftIcon,
@@ -7,7 +7,11 @@ import {
   LinkIcon,
 } from "@heroicons/react/24/outline";
 import type { Item } from "../../types";
-import { getDomain } from "../../utils/urlUtils";
+import {
+  getDomain,
+  getSafeImageUrl,
+  getStaticMapUrl,
+} from "../../utils/urlUtils";
 import { SimpleNoteEditor } from "../SimpleNoteEditor";
 
 type XPostInfo = { username: string; postId: string } | null;
@@ -124,6 +128,17 @@ export function PreviewContent({
     item.article_content &&
     (item.is_article || item.subtype === "code");
   const richContentLabel = item.subtype === "code" ? "README" : "Reader Mode";
+  const isPlacePreview = isUrlPreview && item.subtype === "place";
+  const showStandardUrlPreview =
+    isUrlPreview && !isReaderMode && !isPlacePreview;
+  const staticMapUrl = useMemo(() => {
+    if (!isPlacePreview) return null;
+    return getStaticMapUrl(item.content);
+  }, [isPlacePreview, item.content]);
+  const mapImageUrl = item.image_url || staticMapUrl;
+  const safeMapImageUrl = mapImageUrl ? getSafeImageUrl(mapImageUrl) : null;
+  const placeTitle = item.title || getDomain(item.content);
+  const placeDetail = item.description || item.summary;
   const fallbackTitle =
     item.type === "url" ? item.title || getDomain(item.content) : "";
   const fallbackSummary =
@@ -234,7 +249,34 @@ export function PreviewContent({
         </div>
       )}
 
-      {isUrlPreview && !isReaderMode && item.image_url && !urlImageError && (
+      {isPlacePreview && (
+        <div className="w-full h-full relative">
+          {safeMapImageUrl && !urlImageError ? (
+            <img
+              src={safeMapImageUrl}
+              alt={placeTitle}
+              className="w-full h-full object-cover"
+              onError={() => setUrlImageError(true)}
+            />
+          ) : (
+            <div className="w-full h-full flex items-center justify-center bg-gradient-to-br from-emerald-950 via-stone-900 to-stone-950">
+              <LinkIcon className="w-16 h-16 text-emerald-200/60" />
+            </div>
+          )}
+          <div className="absolute inset-x-0 bottom-0 px-8 py-6 bg-gradient-to-t from-stone-900/80 via-stone-900/40 to-transparent">
+            <h2 className="text-xl font-semibold text-white/95">
+              {placeTitle}
+            </h2>
+            {placeDetail && (
+              <p className="text-sm text-stone-200/90 mt-1 line-clamp-2">
+                {placeDetail}
+              </p>
+            )}
+          </div>
+        </div>
+      )}
+
+      {showStandardUrlPreview && item.image_url && !urlImageError && (
         <img
           src={item.image_url}
           alt={item.title || "Link preview"}
@@ -243,7 +285,7 @@ export function PreviewContent({
         />
       )}
 
-      {isUrlPreview && !isReaderMode && (!item.image_url || urlImageError) && (
+      {showStandardUrlPreview && (!item.image_url || urlImageError) && (
         <div className="flex flex-col items-center justify-center gap-4 p-8 text-stone-300 text-center">
           <LinkIcon className="w-16 h-16" />
           <div className="max-w-xl">

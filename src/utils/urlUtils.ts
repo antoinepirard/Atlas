@@ -106,3 +106,102 @@ export function getSafeImageUrl(url: string): string | null {
   if (/^data:image\//i.test(url)) return url;
   return getSafeExternalUrl(url);
 }
+
+type MapLocation = {
+  lat: number;
+  lon: number;
+  zoom?: number;
+};
+
+function parseLatLonPair(input: string): { lat: number; lon: number } | null {
+  const match = input.match(/(-?\d+(?:\.\d+)?)[, ]+(-?\d+(?:\.\d+)?)/);
+  if (!match) return null;
+  const lat = Number.parseFloat(match[1]);
+  const lon = Number.parseFloat(match[2]);
+  if (!Number.isFinite(lat) || !Number.isFinite(lon)) return null;
+  if (Math.abs(lat) > 90 || Math.abs(lon) > 180) return null;
+  return { lat, lon };
+}
+
+function parseZoom(value: string | null): number | null {
+  if (!value) return null;
+  const match = value.match(/(\d{1,2})(?:\.\d+)?/);
+  if (!match) return null;
+  const zoom = Number.parseInt(match[1], 10);
+  if (Number.isNaN(zoom) || zoom < 1 || zoom > 20) return null;
+  return zoom;
+}
+
+function extractMapLocation(url: URL): MapLocation | null {
+  const atMatch = url.pathname.match(
+    /@(-?\d+(?:\.\d+)?),(-?\d+(?:\.\d+)?)(?:,(\d+(?:\.\d+)?))?z?/
+  );
+  if (atMatch) {
+    const lat = Number.parseFloat(atMatch[1]);
+    const lon = Number.parseFloat(atMatch[2]);
+    if (Number.isFinite(lat) && Number.isFinite(lon)) {
+      return { lat, lon, zoom: parseZoom(atMatch[3]) ?? undefined };
+    }
+  }
+
+  const query = url.searchParams.get("q") || url.searchParams.get("query");
+  if (query) {
+    const parsed = parseLatLonPair(query);
+    if (parsed) return parsed;
+  }
+
+  const ll = url.searchParams.get("ll");
+  if (ll) {
+    const parsed = parseLatLonPair(ll);
+    if (parsed) {
+      return {
+        ...parsed,
+        zoom: parseZoom(url.searchParams.get("z")) ?? undefined,
+      };
+    }
+  }
+
+  const mlat = url.searchParams.get("mlat");
+  const mlon = url.searchParams.get("mlon");
+  if (mlat && mlon) {
+    const lat = Number.parseFloat(mlat);
+    const lon = Number.parseFloat(mlon);
+    if (Number.isFinite(lat) && Number.isFinite(lon)) {
+      return {
+        lat,
+        lon,
+        zoom: parseZoom(url.searchParams.get("zoom")) ?? undefined,
+      };
+    }
+  }
+
+  if (url.hash.startsWith("#map=")) {
+    const match = url.hash.match(
+      /#map=(\d{1,2})\/(-?\d+(?:\.\d+)?)\/(-?\d+(?:\.\d+)?)/
+    );
+    if (match) {
+      const zoom = Number.parseInt(match[1], 10);
+      const lat = Number.parseFloat(match[2]);
+      const lon = Number.parseFloat(match[3]);
+      if (Number.isFinite(lat) && Number.isFinite(lon)) {
+        return { lat, lon, zoom };
+      }
+    }
+  }
+
+  return null;
+}
+
+export function getStaticMapUrl(url: string): string | null {
+  try {
+    const parsed = new URL(url);
+    const location = extractMapLocation(parsed);
+    if (!location) return null;
+
+    const zoom = Math.min(Math.max(location.zoom ?? 14, 3), 17);
+    const center = `${location.lat},${location.lon}`;
+    return `https://staticmap.openstreetmap.de/staticmap.php?center=${center}&zoom=${zoom}&size=800x500&markers=${center},red-pushpin`;
+  } catch {
+    return null;
+  }
+}

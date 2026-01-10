@@ -82,6 +82,10 @@ const TYPE_KEYWORDS: Record<string, ItemType> = {
   substack: "url",
 };
 
+function isItemType(value: string): value is ItemType {
+  return value === "url" || value === "image" || value === "note";
+}
+
 // Time phrase patterns
 interface TimePattern {
   pattern: RegExp;
@@ -602,7 +606,12 @@ function hexToRgb(hex: string): { r: number; g: number; b: number } | null {
  * Apply parsed filters to an item - returns true if item matches all filters
  */
 export function itemMatchesFilters(
-  item: { created_at: string; type: string; colors?: string[]; tags: string[] },
+  item: {
+    created_at: string;
+    type: ItemType;
+    colors?: string[];
+    tags: string[];
+  },
   filters: ParsedQuery["filters"]
 ): boolean {
   // Date range filter
@@ -618,7 +627,7 @@ export function itemMatchesFilters(
 
   // Type filter
   if (filters.types && filters.types.length > 0) {
-    if (!filters.types.includes(item.type as any)) {
+    if (!filters.types.includes(item.type)) {
       return false;
     }
   }
@@ -685,11 +694,7 @@ export async function enhanceWithAI(
       return {
         ...token,
         type: "filter" as const,
-        filterKind: classification.filter_kind as
-          | "date"
-          | "type"
-          | "color"
-          | "tag",
+        filterKind: classification.filter_kind,
         confidence: classification.confidence,
         resolvedValue: classification.resolved_value || undefined,
       };
@@ -707,9 +712,10 @@ export async function enhanceWithAI(
             enhancedFilters.types = enhancedFilters.types || [];
             if (
               token.resolvedValue &&
-              !enhancedFilters.types.includes(token.resolvedValue as any)
+              isItemType(token.resolvedValue) &&
+              !enhancedFilters.types.includes(token.resolvedValue)
             ) {
-              enhancedFilters.types.push(token.resolvedValue as any);
+              enhancedFilters.types.push(token.resolvedValue);
             }
             break;
           case "color":

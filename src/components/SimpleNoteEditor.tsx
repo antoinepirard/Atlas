@@ -46,9 +46,11 @@ export function SimpleNoteEditor({
   // Focus textarea when entering edit mode
   useEffect(() => {
     if (isEditing && textareaRef.current) {
-      textareaRef.current.focus();
+      const textarea = textareaRef.current;
+      textarea.focus();
       // Place cursor at the end
-      textareaRef.current.setSelectionRange(content.length, content.length);
+      const endPosition = textarea.value.length;
+      textarea.setSelectionRange(endPosition, endPosition);
     }
   }, [isEditing]);
 

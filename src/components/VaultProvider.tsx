@@ -110,6 +110,12 @@ export function VaultProvider({ children }: VaultProviderProps) {
     }
   }, []);
 
+  const lock = useCallback(async () => {
+    setWasManuallyLocked(true);
+    await tauri.lockVault();
+    await refreshStatus();
+  }, [refreshStatus]);
+
   // Initial load
   useEffect(() => {
     refreshStatus().finally(() => setIsLoading(false));
@@ -181,7 +187,7 @@ export function VaultProvider({ children }: VaultProviderProps) {
         clearInterval(autoLockTimerRef.current);
       }
     };
-  }, [status.unlocked, status.auto_lock_minutes, isWindowVisible]);
+  }, [status.unlocked, status.auto_lock_minutes, isWindowVisible, lock]);
 
   const createVault = useCallback(
     async (password: string, name?: string): Promise<string[]> => {
@@ -241,12 +247,6 @@ export function VaultProvider({ children }: VaultProviderProps) {
 
   const disableBiometrics = useCallback(async (): Promise<void> => {
     await tauri.disableBiometrics();
-    await refreshStatus();
-  }, [refreshStatus]);
-
-  const lock = useCallback(async () => {
-    setWasManuallyLocked(true);
-    await tauri.lockVault();
     await refreshStatus();
   }, [refreshStatus]);
 

@@ -7,29 +7,28 @@ import { useItemOperations } from "./useItemOperations";
 export function useAtlas() {
   const pagination = useItemPagination();
   const search = useItemSearch(pagination.items);
+  const { setItems, setTotalCount, loadMore: loadMorePage } = pagination;
 
   // Create stable callbacks for operations
   const operationsCallbacks = useMemo(
     () => ({
       onItemAdded: (item: Item) => {
-        pagination.setItems((prev) => [item, ...prev]);
+        setItems((prev) => [item, ...prev]);
       },
       onItemUpdated: (item: Item) => {
-        pagination.setItems((prev) =>
-          prev.map((i) => (i.id === item.id ? item : i))
-        );
+        setItems((prev) => prev.map((i) => (i.id === item.id ? item : i)));
       },
       onItemDeleted: (id: string) => {
-        pagination.setItems((prev) => prev.filter((i) => i.id !== id));
+        setItems((prev) => prev.filter((i) => i.id !== id));
       },
       onItemsDeleted: (ids: string[]) => {
-        pagination.setItems((prev) => prev.filter((i) => !ids.includes(i.id)));
+        setItems((prev) => prev.filter((i) => !ids.includes(i.id)));
       },
       onCountChange: (delta: number) => {
-        pagination.setTotalCount((prev) => prev + delta);
+        setTotalCount((prev) => prev + delta);
       },
     }),
-    [pagination.setItems, pagination.setTotalCount]
+    [setItems, setTotalCount]
   );
 
   const operations = useItemOperations(operationsCallbacks);
@@ -37,8 +36,8 @@ export function useAtlas() {
   // Create a wrapped loadMore that respects search state
   const loadMore = useCallback(async () => {
     if (search.isSearching || search.searchQuery) return;
-    await pagination.loadMore();
-  }, [pagination.loadMore, search.isSearching, search.searchQuery]);
+    await loadMorePage();
+  }, [loadMorePage, search.isSearching, search.searchQuery]);
 
   return {
     // Items (filtered by search)
