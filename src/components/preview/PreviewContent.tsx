@@ -33,6 +33,13 @@ const ARTICLE_SANITIZE_OPTIONS = {
     "blockquote",
     "code",
     "pre",
+    "table",
+    "thead",
+    "tbody",
+    "tr",
+    "th",
+    "td",
+    "span",
     "img",
     "figure",
     "figcaption",
@@ -78,12 +85,16 @@ export function PreviewContent({
   }, [item.id, item.type, item.content]);
 
   useEffect(() => {
-    if (item.type === "url" && item.is_article && item.article_content) {
+    if (
+      item.type === "url" &&
+      item.article_content &&
+      (item.is_article || item.subtype === "code")
+    ) {
       setIsReaderMode(true);
     } else {
       setIsReaderMode(false);
     }
-  }, [item.id, item.type, item.is_article, item.article_content]);
+  }, [item.id, item.type, item.is_article, item.article_content, item.subtype]);
 
   useEffect(() => {
     setUrlImageError(false);
@@ -108,6 +119,15 @@ export function PreviewContent({
 
   const showNavigation = onNavigate && totalItems > 1 && item.type !== "note";
   const isUrlPreview = item.type === "url" && !youtubeVideoId && !xPostInfo;
+  const hasRichContent =
+    isUrlPreview &&
+    item.article_content &&
+    (item.is_article || item.subtype === "code");
+  const richContentLabel = item.subtype === "code" ? "README" : "Reader Mode";
+  const fallbackTitle =
+    item.type === "url" ? item.title || getDomain(item.content) : "";
+  const fallbackSummary =
+    item.type === "url" ? item.summary || item.description : null;
 
   return (
     <div
@@ -181,7 +201,7 @@ export function PreviewContent({
         </div>
       )}
 
-      {isUrlPreview && item.article_content && (
+      {hasRichContent && (
         <button
           onClick={() => setIsReaderMode(!isReaderMode)}
           className={`absolute top-4 right-4 px-3 py-1.5 rounded-lg text-sm font-medium shadow-sm transition-colors z-10 flex items-center gap-1.5 ${
@@ -191,11 +211,11 @@ export function PreviewContent({
           }`}
         >
           <DocumentTextIcon className="w-4 h-4" />
-          {isReaderMode ? "Show Preview" : "Reader Mode"}
+          {isReaderMode ? "Show Preview" : richContentLabel}
         </button>
       )}
 
-      {isUrlPreview && isReaderMode && item.article_content && (
+      {hasRichContent && isReaderMode && (
         <div className="w-full h-full overflow-auto bg-stone-50">
           <article className="max-w-2xl mx-auto px-8 py-12">
             <h1 className="text-2xl font-bold text-stone-800 mb-6 leading-tight">
@@ -224,9 +244,22 @@ export function PreviewContent({
       )}
 
       {isUrlPreview && !isReaderMode && (!item.image_url || urlImageError) && (
-        <div className="flex flex-col items-center justify-center gap-4 p-8 text-stone-400">
+        <div className="flex flex-col items-center justify-center gap-4 p-8 text-stone-300 text-center">
           <LinkIcon className="w-16 h-16" />
-          <span className="text-lg font-medium">{getDomain(item.content)}</span>
+          <div className="max-w-xl">
+            <p className="text-lg font-semibold text-stone-200">
+              {fallbackTitle}
+            </p>
+            {fallbackSummary ? (
+              <p className="text-sm text-stone-400 mt-2 line-clamp-3">
+                {fallbackSummary}
+              </p>
+            ) : (
+              <p className="text-sm text-stone-500 mt-2">
+                {getDomain(item.content)}
+              </p>
+            )}
+          </div>
         </div>
       )}
 

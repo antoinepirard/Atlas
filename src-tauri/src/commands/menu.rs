@@ -65,6 +65,8 @@ pub async fn show_item_context_menu(
                     .map_err(|e| e.to_string())?,
                 &MenuItem::with_id(&app, "ctx_copy", "Copy", true, None::<&str>)
                     .map_err(|e| e.to_string())?,
+                &MenuItem::with_id(&app, "ctx_enrich", "Enrich", true, None::<&str>)
+                    .map_err(|e| e.to_string())?,
                 &PredefinedMenuItem::separator(&app).map_err(|e| e.to_string())?,
                 &MenuItem::with_id(&app, "ctx_delete", "Delete", true, None::<&str>)
                     .map_err(|e| e.to_string())?,
@@ -76,6 +78,8 @@ pub async fn show_item_context_menu(
             &app,
             &[
                 &MenuItem::with_id(&app, "ctx_copy", "Copy", true, None::<&str>)
+                    .map_err(|e| e.to_string())?,
+                &MenuItem::with_id(&app, "ctx_enrich", "Enrich", true, None::<&str>)
                     .map_err(|e| e.to_string())?,
                 &PredefinedMenuItem::separator(&app).map_err(|e| e.to_string())?,
                 &MenuItem::with_id(&app, "ctx_delete", "Delete", true, None::<&str>)

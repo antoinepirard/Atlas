@@ -201,9 +201,9 @@ fn load_tray_icons(app: &tauri::AppHandle) -> TrayIcons {
 }
 
 /// Shared state for the tray icon handle
-pub struct TrayState {
-    pub handle: TokioMutex<Option<tauri::tray::TrayIcon>>,
-    pub icons: TokioMutex<Option<TrayIcons>>,
+struct TrayState {
+    handle: TokioMutex<Option<tauri::tray::TrayIcon>>,
+    icons: TokioMutex<Option<TrayIcons>>,
 }
 
 impl TrayState {
@@ -520,6 +520,8 @@ pub fn run() {
             commands::get_full_image,
             commands::migrate_image_to_external,
             commands::migrate_all_images,
+            // Subtype migration
+            commands::migrate_subtypes,
             // AI commands
             commands::save_api_key,
             commands::remove_api_key,

@@ -47,6 +47,12 @@ pub struct AIProcessResult {
     /// Whether the content is classified as a readable article
     #[serde(default)]
     pub is_article: bool,
+    /// Content subtype classification
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub subtype: Option<String>,
+    /// Confidence score for subtype classification (0.0-1.0)
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub subtype_confidence: Option<f32>,
 }
 
 /// URL metadata result

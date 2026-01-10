@@ -1,8 +1,14 @@
 import { useState, useCallback } from "react";
 import * as tauri from "../lib/tauri";
-import type { Item } from "../types";
+import type { Item, ItemSubtype } from "../types";
 import { detectType, isGenericTitle } from "../utils/contentUtils";
 import { isXPostUrl, fetchTweetContent } from "../utils/twitterUtils";
+import {
+  detectUrlSubtypeByDomain,
+  detectNoteSubtype,
+  getDefaultImageSubtype,
+  resolveSubtype,
+} from "../utils/subtypeDetection";
 
 export interface ItemOperationsCallbacks {
   onItemAdded: (item: Item) => void;
@@ -21,6 +27,43 @@ export interface UseItemOperationsReturn {
   deleteItems: (itemIds: string[]) => Promise<boolean>;
   updateItem: (updatedItem: Item) => Promise<Item | null>;
   enrichItems: (items: Item[]) => Promise<{ updated: number; failed: number }>;
+}
+
+async function getImageDimensions(
+  file: File
+): Promise<{ width: number; height: number } | null> {
+  try {
+    const bitmap = await createImageBitmap(file);
+    const size = { width: bitmap.width, height: bitmap.height };
+    bitmap.close();
+    return size;
+  } catch {
+    return null;
+  }
+}
+
+function isScreenshotFilename(name: string): boolean {
+  const lowered = name.toLowerCase();
+  return (
+    lowered.includes("screenshot") ||
+    lowered.includes("screen shot") ||
+    lowered.includes("screen-shot") ||
+    lowered.includes("screen_shot") ||
+    lowered.includes("capture d'ecran") ||
+    lowered.includes("capture d'écran")
+  );
+}
+
+function isLikelyScreenshot(
+  file: File,
+  dimensions: { width: number; height: number } | null
+): boolean {
+  if (!dimensions) return false;
+  if (!file.type.includes("png")) return false;
+  const { width, height } = dimensions;
+  if (width < 900 || height < 600) return false;
+  const aspect = width / height;
+  return aspect >= 1.2 && aspect <= 2.5;
 }
 
 export function useItemOperations(
@@ -82,6 +125,8 @@ export function useItemOperations(
         let summary = "";
         let embedding: number[] = [];
         let isArticle = false;
+        let aiSubtype: ItemSubtype | undefined;
+        let aiSubtypeConfidence: number | undefined;
         try {
           // For X posts, use the tweet content for AI processing
           const contentForAI = tweetContent || content;
@@ -99,6 +144,8 @@ export function useItemOperations(
           summary = aiResult.summary;
           embedding = aiResult.embedding;
           isArticle = aiResult.is_article || false;
+          aiSubtype = aiResult.subtype;
+          aiSubtypeConfidence = aiResult.subtype_confidence;
           // Use AI-generated title if current title is missing or generic
           if (aiResult.title && isGenericTitle(title)) {
             title = aiResult.title;
@@ -123,6 +170,19 @@ export function useItemOperations(
           console.warn("AI processing failed, using defaults:", err);
         }
 
+        // Detect subtype using hybrid approach (domain detection + AI)
+        let subtypeResult = null;
+        if (itemType === "url") {
+          const domainDetection = detectUrlSubtypeByDomain(content);
+          subtypeResult = resolveSubtype(
+            domainDetection,
+            aiSubtype,
+            aiSubtypeConfidence
+          );
+        } else if (itemType === "note") {
+          subtypeResult = detectNoteSubtype(content);
+        }
+
         const newItem = await tauri.addItem({
           content,
           type: itemType,
@@ -135,6 +195,9 @@ export function useItemOperations(
           embedding: embedding.length > 0 ? embedding : undefined,
           article_content: articleContent,
           is_article: isArticle,
+          subtype: subtypeResult?.subtype,
+          subtype_confidence: subtypeResult?.confidence,
+          subtype_method: subtypeResult?.method,
         });
 
         callbacks.onItemAdded(newItem);
@@ -164,10 +227,17 @@ export function useItemOperations(
           reader.readAsDataURL(file);
         });
 
+        const dimensions = await getImageDimensions(file);
+        const screenshotHint =
+          isScreenshotFilename(file.name) ||
+          isLikelyScreenshot(file, dimensions);
+
         let imageTags: string[] = ["image"];
         let imageSummary = "";
         let imageEmbedding: number[] = [];
         let imageTitle: string = file.name;
+        let aiSubtype: ItemSubtype | undefined;
+        let aiSubtypeConfidence: number | undefined;
         try {
           const aiResult = await tauri.processWithAI(
             dataUrl,
@@ -177,6 +247,8 @@ export function useItemOperations(
           imageTags = aiResult.tags;
           imageSummary = aiResult.summary;
           imageEmbedding = aiResult.embedding;
+          aiSubtype = aiResult.subtype;
+          aiSubtypeConfidence = aiResult.subtype_confidence;
           // Use AI-generated title if filename is generic
           if (aiResult.title && isGenericTitle(file.name)) {
             imageTitle = aiResult.title;
@@ -184,6 +256,23 @@ export function useItemOperations(
         } catch (err) {
           console.warn("AI processing failed, using defaults:", err);
         }
+
+        // For images, use AI classification, with a screenshot override when likely
+        const prefersScreenshot =
+          screenshotHint &&
+          (!aiSubtype ||
+            aiSubtype === "illustration" ||
+            (aiSubtypeConfidence !== undefined && aiSubtypeConfidence < 0.65));
+
+        const subtypeResult = prefersScreenshot
+          ? { subtype: "screenshot", confidence: 0.65, method: "ai" as const }
+          : aiSubtype
+            ? {
+                subtype: aiSubtype,
+                confidence: aiSubtypeConfidence ?? 0.5,
+                method: "ai" as const,
+              }
+            : getDefaultImageSubtype();
 
         const newItem = await tauri.addItem({
           content: dataUrl,
@@ -193,6 +282,9 @@ export function useItemOperations(
           image_url: dataUrl,
           tags: imageTags,
           embedding: imageEmbedding.length > 0 ? imageEmbedding : undefined,
+          subtype: subtypeResult.subtype,
+          subtype_confidence: subtypeResult.confidence,
+          subtype_method: subtypeResult.method,
         });
 
         callbacks.onItemAdded(newItem);
@@ -342,6 +434,27 @@ export function useItemOperations(
           }
         }
 
+        // Detect subtype using hybrid approach
+        let subtypeResult = null;
+        if (item.type === "url") {
+          const domainDetection = detectUrlSubtypeByDomain(item.content);
+          subtypeResult = resolveSubtype(
+            domainDetection,
+            aiResult.subtype,
+            aiResult.subtype_confidence
+          );
+        } else if (item.type === "note") {
+          subtypeResult = detectNoteSubtype(item.content);
+        } else if (item.type === "image") {
+          subtypeResult = aiResult.subtype
+            ? {
+                subtype: aiResult.subtype,
+                confidence: aiResult.subtype_confidence ?? 0.5,
+                method: "ai" as const,
+              }
+            : getDefaultImageSubtype();
+        }
+
         const updatedItem: Item = {
           ...item,
           title: title ?? null,
@@ -355,6 +468,9 @@ export function useItemOperations(
             item.type === "url"
               ? (aiResult.is_article ?? item.is_article ?? false)
               : item.is_article,
+          subtype: subtypeResult?.subtype,
+          subtype_confidence: subtypeResult?.confidence,
+          subtype_method: subtypeResult?.method,
         };
 
         const result = await tauri.updateItem(updatedItem);

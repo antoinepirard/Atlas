@@ -6,6 +6,7 @@ mod classification;
 mod article;
 mod settings;
 mod usage;
+pub mod subtype_detection;
 
 // Re-export public types
 pub use types::{AIProcessResult, UrlMetadata, TokenClassification, AiSettings, AiUsageDay, AiBudgetStatus};
@@ -18,3 +19,4 @@ pub use classification::*;
 pub use article::sanitize_article_html;
 pub use settings::*;
 pub use usage::*;
+pub use subtype_detection::{detect_url_subtype_by_domain, detect_note_subtype, get_default_image_subtype, SubtypeDetection};

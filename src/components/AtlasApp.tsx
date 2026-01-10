@@ -143,6 +143,9 @@ export function AtlasApp() {
           case "copy":
             navigator.clipboard.writeText(item.content);
             break;
+          case "enrich":
+            await enrichItems([item]);
+            break;
           case "delete":
             await deleteItem(item_id);
             break;
@@ -153,7 +156,7 @@ export function AtlasApp() {
     return () => {
       unlisten.then((fn) => fn());
     };
-  }, [items, deleteItem]);
+  }, [items, deleteItem, enrichItems]);
 
   // Listen for quick-capture events from Tauri - save automatically in the background
   useEffect(() => {

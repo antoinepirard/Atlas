@@ -1,5 +1,8 @@
 use crate::capture::QuickCaptureData;
-use crate::commands::ai::{fetch_url_metadata, process_with_ai, sanitize_article_html};
+use crate::commands::ai::{
+    detect_note_subtype, detect_url_subtype_by_domain, fetch_url_metadata, process_with_ai,
+    sanitize_article_html,
+};
 use crate::commands::vault::VaultState;
 use crate::crypto;
 use crate::db::{EncryptedItem, FtsEntry};
@@ -44,6 +47,15 @@ pub struct Item {
     /// Whether this URL is classified as a readable article
     #[serde(default)]
     pub is_article: bool,
+    /// Content subtype for specialized rendering
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub subtype: Option<String>,
+    /// Confidence score for subtype classification (0.0-1.0)
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub subtype_confidence: Option<f32>,
+    /// How the subtype was detected ("domain" or "ai")
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub subtype_method: Option<String>,
 }
 
 /// Input for adding new content
@@ -64,6 +76,12 @@ pub struct AddItemInput {
     /// Whether this URL is classified as a readable article
     #[serde(default)]
     pub is_article: bool,
+    /// Content subtype for specialized rendering
+    pub subtype: Option<String>,
+    /// Confidence score for subtype classification (0.0-1.0)
+    pub subtype_confidence: Option<f32>,
+    /// How the subtype was detected
+    pub subtype_method: Option<String>,
 }
 
 /// Check if a string is a base64 data URL
@@ -151,6 +169,9 @@ pub fn add_item(input: AddItemInput, state: State<VaultState>) -> Result<Item, S
         colors: vec![],
         article_content: input.article_content,
         is_article: input.is_article,
+        subtype: input.subtype,
+        subtype_confidence: input.subtype_confidence,
+        subtype_method: input.subtype_method,
     };
 
     // For image items with data URL content, store externally
@@ -623,6 +644,9 @@ pub async fn add_item_from_capture(
                 }
             }
 
+            // Detect URL subtype
+            let subtype_detection = detect_url_subtype_by_domain(&url);
+
             let item = add_item(
                 AddItemInput {
                     content: url.clone(),
@@ -640,6 +664,9 @@ pub async fn add_item_from_capture(
                     },
                     article_content: url_article_content.clone(),
                     is_article,
+                    subtype: subtype_detection.as_ref().map(|d| d.subtype.clone()),
+                    subtype_confidence: subtype_detection.as_ref().map(|d| d.confidence),
+                    subtype_method: subtype_detection.as_ref().map(|d| d.method.clone()),
                 },
                 state.clone(),
             )?;
@@ -673,6 +700,8 @@ pub async fn add_item_from_capture(
                     }
                 }
 
+                let subtype_detection = detect_note_subtype(trimmed);
+
                 let item = add_item(
                     AddItemInput {
                         content: trimmed.to_string(),
@@ -690,6 +719,9 @@ pub async fn add_item_from_capture(
                         },
                         article_content: None,
                         is_article: false,
+                        subtype: Some(subtype_detection.subtype),
+                        subtype_confidence: Some(subtype_detection.confidence),
+                        subtype_method: Some(subtype_detection.method),
                     },
                     state.clone(),
                 )?;
@@ -704,4 +736,119 @@ pub async fn add_item_from_capture(
     } else {
         Ok(saved_items)
     }
+}
+
+/// Result of subtype migration
+#[derive(Debug, Serialize)]
+pub struct SubtypeMigrationResult {
+    pub processed: u32,
+    pub updated: u32,
+    pub skipped: u32,
+    pub failed: u32,
+}
+
+/// Migrate existing items to add subtype classification
+/// Uses domain detection for URLs and pattern detection for notes
+/// Does NOT make any AI API calls (fast, deterministic)
+#[tauri::command]
+pub fn migrate_subtypes(state: State<VaultState>) -> Result<SubtypeMigrationResult, String> {
+    use crate::commands::ai::{detect_url_subtype_by_domain, detect_note_subtype, get_default_image_subtype};
+
+    let key = state.get_key().ok_or("Vault is locked")?;
+    let encrypted_items = state.db.get_all_items().map_err(|e| e.to_string())?;
+
+    let mut result = SubtypeMigrationResult {
+        processed: 0,
+        updated: 0,
+        skipped: 0,
+        failed: 0,
+    };
+
+    for encrypted in encrypted_items {
+        result.processed += 1;
+
+        match crypto::decrypt(&encrypted.encrypted_data, &key) {
+            Ok(json) => {
+                if let Ok(mut item) = serde_json::from_str::<Item>(&json) {
+                    // Skip if already has a subtype with good confidence
+                    if item.subtype.is_some() {
+                        if let Some(confidence) = item.subtype_confidence {
+                            if confidence >= 0.7 {
+                                result.skipped += 1;
+                                continue;
+                            }
+                        }
+                    }
+
+                    // Detect subtype based on item type
+                    let detection = match item.item_type {
+                        ItemType::Url => {
+                            // Try domain detection first
+                            if let Some(detection) = detect_url_subtype_by_domain(&item.content) {
+                                detection
+                            } else {
+                                // Check legacy is_article flag
+                                if item.is_article {
+                                    crate::commands::ai::SubtypeDetection {
+                                        subtype: "article".to_string(),
+                                        confidence: 0.9,
+                                        method: "domain".to_string(),
+                                    }
+                                } else {
+                                    // Default to article with low confidence for unknown URLs
+                                    crate::commands::ai::SubtypeDetection {
+                                        subtype: "article".to_string(),
+                                        confidence: 0.3,
+                                        method: "domain".to_string(),
+                                    }
+                                }
+                            }
+                        }
+                        ItemType::Note => detect_note_subtype(&item.content),
+                        ItemType::Image => get_default_image_subtype(),
+                    };
+
+                    item.subtype = Some(detection.subtype);
+                    item.subtype_confidence = Some(detection.confidence);
+                    item.subtype_method = Some(detection.method);
+
+                    // Re-encrypt and save
+                    match serde_json::to_string(&item) {
+                        Ok(json) => {
+                            match crypto::encrypt(&json, &key) {
+                                Ok(encrypted_data) => {
+                                    let updated = EncryptedItem {
+                                        id: item.id.clone(),
+                                        encrypted_data,
+                                        created_at: encrypted.created_at,
+                                        updated_at: chrono::Utc::now().to_rfc3339(),
+                                    };
+
+                                    if state.db.save_item(&updated).is_ok() {
+                                        result.updated += 1;
+                                    } else {
+                                        result.failed += 1;
+                                    }
+                                }
+                                Err(_) => {
+                                    result.failed += 1;
+                                }
+                            }
+                        }
+                        Err(_) => {
+                            result.failed += 1;
+                        }
+                    }
+                } else {
+                    result.failed += 1;
+                }
+            }
+            Err(e) => {
+                eprintln!("Failed to decrypt item {}: {}", encrypted.id, e);
+                result.failed += 1;
+            }
+        }
+    }
+
+    Ok(result)
 }

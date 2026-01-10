@@ -50,7 +50,6 @@ Atlas supports automatic updates. When a new version is released, users will see
    ```
 
    This creates:
-
    - `~/.tauri/atlas.key` (private key - keep this secret!)
    - `~/.tauri/atlas.key.pub` (public key)
 
@@ -102,3 +101,7 @@ Your encrypted vault is stored at:
 - **Database**: SQLite (via rusqlite)
 - **Encryption**: aes-gcm, pbkdf2 (Rust crates)
 - **AI**: OpenAI API (gpt-4o-mini, text-embedding-3-small)
+
+# Core Product Philosophy
+
+- **Abstract Complexity**: Complexity should always be abstracted for the user. This translates into UX decisions and implies that technology should solve UX challenges for users rather than rely on unnecessary choices.

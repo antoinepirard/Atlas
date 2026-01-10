@@ -33,6 +33,8 @@ pub async fn process_with_ai(
 2. "summary": A concise 2-3 sentence summary of the content.
 3. "title": A concise, descriptive title (4-8 words) that captures the essence of the content.
 4. "is_article": Boolean - true if this is a readable article, blog post, or news story. False if it's a video, social media post, product page, homepage, or interactive app.
+5. "subtype": Classify as one of: "product" (e-commerce, retail), "article" (news, blog, documentation), "video" (video content), "social" (social media posts), "code" (repositories, code snippets), "audio" (podcasts, music).
+6. "subtype_confidence": A number 0.0-1.0 indicating confidence in the subtype classification.
 
 Source: {}
 Title: {}
@@ -49,6 +51,8 @@ Focus on the actual content when generating tags. Return ONLY valid JSON, no mar
 2. "summary": A concise 2-3 sentence summary
 3. "title": A concise, descriptive title (4-8 words) that captures the essence of the content.
 4. "is_article": Boolean - true if this is a readable article, blog post, or news story. False if it's a video, social media post, product page, homepage, or interactive app.
+5. "subtype": Classify as one of: "product" (e-commerce, retail), "article" (news, blog, documentation), "video" (video content), "social" (social media posts), "code" (repositories, code snippets), "audio" (podcasts, music).
+6. "subtype_confidence": A number 0.0-1.0 indicating confidence in the subtype classification.
 
 URL: {}
 Title: {}
@@ -76,6 +80,8 @@ Generate a JSON object with:
 1. "tags": An array of 5-8 descriptive tags for an image
 2. "summary": A brief description
 3. "title": A concise, descriptive title (4-8 words) for this image. Be creative based on the filename context.
+4. "subtype": Classify as one of: "screenshot" (UI screenshots, app interfaces), "photo" (photographs), "diagram" (charts, flowcharts, diagrams), "document" (scanned docs, PDFs), "illustration" (artwork, memes, graphics).
+5. "subtype_confidence": A number 0.0-1.0 indicating confidence in the subtype classification.
 
 Return ONLY valid JSON, no markdown."#,
             title.as_deref().unwrap_or("image")
@@ -135,11 +141,11 @@ Return ONLY valid JSON, no markdown."#,
         .unwrap_or_default();
     
     // Parse the JSON response
-    let (tags, summary, ai_title, is_article) = parse_ai_response(&response_text);
+    let parsed = parse_ai_response(&response_text);
 
     // Get embedding
-    let embedding_input = if !summary.is_empty() {
-        format!("{} {}", summary, tags.join(" "))
+    let embedding_input = if !parsed.summary.is_empty() {
+        format!("{} {}", parsed.summary, parsed.tags.join(" "))
     } else {
         content.chars().take(1000).collect()
     };
@@ -147,11 +153,13 @@ Return ONLY valid JSON, no markdown."#,
     let embedding = get_embedding(&client, &api_key, &embedding_input, "embedding").await?;
 
     Ok(AIProcessResult {
-        tags,
-        summary,
+        tags: parsed.tags,
+        summary: parsed.summary,
         embedding,
-        title: ai_title,
-        is_article,
+        title: parsed.title,
+        is_article: parsed.is_article,
+        subtype: parsed.subtype,
+        subtype_confidence: parsed.subtype_confidence,
     })
 }
 
@@ -210,8 +218,18 @@ async fn get_embedding(
         .ok_or_else(|| "No embedding returned".to_string())
 }
 
+/// Parsed AI response
+struct ParsedAIResponse {
+    tags: Vec<String>,
+    summary: String,
+    title: Option<String>,
+    is_article: bool,
+    subtype: Option<String>,
+    subtype_confidence: Option<f32>,
+}
+
 /// Parse AI response JSON
-fn parse_ai_response(text: &str) -> (Vec<String>, String, Option<String>, bool) {
+fn parse_ai_response(text: &str) -> ParsedAIResponse {
     // Try to extract JSON from the response
     let json_str = if let Some(start) = text.find('{') {
         if let Some(end) = text.rfind('}') {
@@ -229,6 +247,8 @@ fn parse_ai_response(text: &str) -> (Vec<String>, String, Option<String>, bool) 
         summary: Option<String>,
         title: Option<String>,
         is_article: Option<bool>,
+        subtype: Option<String>,
+        subtype_confidence: Option<f32>,
     }
 
     if let Ok(parsed) = serde_json::from_str::<AIResponse>(json_str) {
@@ -241,8 +261,25 @@ fn parse_ai_response(text: &str) -> (Vec<String>, String, Option<String>, bool) 
         let summary = parsed.summary.unwrap_or_default();
         let title = parsed.title.filter(|t| !t.trim().is_empty());
         let is_article = parsed.is_article.unwrap_or(false);
-        (tags, summary, title, is_article)
+        let subtype = parsed.subtype.filter(|s| !s.trim().is_empty());
+        let subtype_confidence = parsed.subtype_confidence;
+
+        ParsedAIResponse {
+            tags,
+            summary,
+            title,
+            is_article,
+            subtype,
+            subtype_confidence,
+        }
     } else {
-        (vec![], String::new(), None, false)
+        ParsedAIResponse {
+            tags: vec![],
+            summary: String::new(),
+            title: None,
+            is_article: false,
+            subtype: None,
+            subtype_confidence: None,
+        }
     }
 }

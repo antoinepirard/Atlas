@@ -1,5 +1,31 @@
 export type ItemType = "url" | "image" | "note";
 
+// URL subtypes for specialized card rendering
+export type UrlSubtype =
+  | "product"
+  | "article"
+  | "video"
+  | "social"
+  | "code"
+  | "audio";
+
+// Image subtypes for specialized rendering
+export type ImageSubtype =
+  | "screenshot"
+  | "photo"
+  | "diagram"
+  | "document"
+  | "illustration";
+
+// Note subtypes for specialized rendering
+export type NoteSubtype = "plain" | "checklist" | "code" | "quote";
+
+// Combined subtype union
+export type ItemSubtype = UrlSubtype | ImageSubtype | NoteSubtype;
+
+// Detection method for subtype classification
+export type SubtypeMethod = "domain" | "ai";
+
 export interface Item {
   id: string;
   type: ItemType;
@@ -21,12 +47,25 @@ export interface Item {
   article_content?: string | null;
   /** Whether this URL is classified as a readable article */
   is_article?: boolean;
+  /** Content subtype for specialized rendering */
+  subtype?: ItemSubtype;
+  /** Confidence score for subtype classification (0.0-1.0) */
+  subtype_confidence?: number;
+  /** How the subtype was detected */
+  subtype_method?: SubtypeMethod;
 }
 
 export interface MigrationResult {
   migrated: number;
   failed: number;
   skipped: number;
+}
+
+export interface SubtypeMigrationResult {
+  processed: number;
+  updated: number;
+  skipped: number;
+  failed: number;
 }
 
 export interface ItemsPage {
@@ -65,6 +104,12 @@ export interface AddItemInput {
   article_content?: string;
   /** Whether this URL is classified as a readable article */
   is_article?: boolean;
+  /** Content subtype for specialized rendering */
+  subtype?: ItemSubtype;
+  /** Confidence score for subtype classification (0.0-1.0) */
+  subtype_confidence?: number;
+  /** How the subtype was detected */
+  subtype_method?: SubtypeMethod;
 }
 
 export interface SearchResult extends Item {
@@ -119,6 +164,10 @@ export interface AIProcessResult {
   title?: string;
   /** Whether the content is classified as a readable article */
   is_article?: boolean;
+  /** Content subtype classification */
+  subtype?: ItemSubtype;
+  /** Confidence score for subtype classification (0.0-1.0) */
+  subtype_confidence?: number;
 }
 
 export interface UrlMetadata {

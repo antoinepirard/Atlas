@@ -10,6 +10,7 @@ import type {
   UrlMetadata,
   ItemType,
   MigrationResult,
+  SubtypeMigrationResult,
   ItemsPage,
   SearchResponse,
   ReindexResult,
@@ -114,6 +115,11 @@ export async function migrateImageToExternal(id: string): Promise<string> {
 
 export async function migrateAllImages(): Promise<MigrationResult> {
   return invoke("migrate_all_images");
+}
+
+// Subtype migration
+export async function migrateSubtypes(): Promise<SubtypeMigrationResult> {
+  return invoke("migrate_subtypes");
 }
 
 // AI commands
