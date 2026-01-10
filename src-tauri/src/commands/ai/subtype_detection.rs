@@ -38,6 +38,43 @@ pub fn detect_url_subtype_by_domain(url_str: &str) -> Option<SubtypeDetection> {
         });
     }
 
+    // Event platforms
+    if host.contains("eventbrite.com")
+        || host.contains("meetup.com")
+        || host.contains("lu.ma")
+        || host.contains("ticketmaster.com")
+        || host.contains("seatgeek.com")
+        || host.contains("dice.fm")
+        || host.contains("eventful.com")
+        || host.contains("universe.com")
+        || host.contains("pretix.eu")
+        || (host.contains("facebook.com") && path.contains("/events/"))
+    {
+        return Some(SubtypeDetection {
+            subtype: "event".to_string(),
+            confidence: 1.0,
+            method: "domain".to_string(),
+        });
+    }
+
+    // Places & maps
+    if host.contains("maps.google.")
+        || (host.contains("google.") && path.starts_with("/maps"))
+        || host.contains("maps.apple.com")
+        || host.contains("yelp.com")
+        || host.contains("tripadvisor.")
+        || host.contains("foursquare.com")
+        || host.contains("openstreetmap.org")
+        || (host.contains("bing.com") && path.starts_with("/maps"))
+        || host.contains("waze.com")
+    {
+        return Some(SubtypeDetection {
+            subtype: "place".to_string(),
+            confidence: 1.0,
+            method: "domain".to_string(),
+        });
+    }
+
     // Social platforms
     if host == "x.com"
         || host == "twitter.com"
@@ -431,6 +468,21 @@ mod tests {
             detect_url_subtype_by_domain("https://open.spotify.com/episode/1234567890");
         assert!(result.is_some());
         assert_eq!(result.unwrap().subtype, "audio");
+    }
+
+    #[test]
+    fn test_eventbrite_detection() {
+        let result =
+            detect_url_subtype_by_domain("https://www.eventbrite.com/e/sample-event-1234567890");
+        assert!(result.is_some());
+        assert_eq!(result.unwrap().subtype, "event");
+    }
+
+    #[test]
+    fn test_google_maps_detection() {
+        let result = detect_url_subtype_by_domain("https://www.google.com/maps/place/Paris");
+        assert!(result.is_some());
+        assert_eq!(result.unwrap().subtype, "place");
     }
 
     #[test]

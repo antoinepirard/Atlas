@@ -7,7 +7,9 @@ export type UrlSubtype =
   | "video"
   | "social"
   | "code"
-  | "audio";
+  | "audio"
+  | "event"
+  | "place";
 
 // Image subtypes for specialized rendering
 export type ImageSubtype =

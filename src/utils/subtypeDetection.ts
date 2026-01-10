@@ -40,6 +40,37 @@ export function detectUrlSubtypeByDomain(
       return { subtype: "video", confidence: 1.0, method: "domain" };
     }
 
+    // Event platforms
+    if (
+      host.includes("eventbrite.com") ||
+      host.includes("meetup.com") ||
+      host.includes("lu.ma") ||
+      host.includes("ticketmaster.com") ||
+      host.includes("seatgeek.com") ||
+      host.includes("dice.fm") ||
+      host.includes("eventful.com") ||
+      host.includes("universe.com") ||
+      host.includes("pretix.eu") ||
+      (host.includes("facebook.com") && path.includes("/events/"))
+    ) {
+      return { subtype: "event", confidence: 1.0, method: "domain" };
+    }
+
+    // Places & maps
+    if (
+      host.includes("maps.google.") ||
+      (host.includes("google.") && path.startsWith("/maps")) ||
+      host.includes("maps.apple.com") ||
+      host.includes("yelp.com") ||
+      host.includes("tripadvisor.") ||
+      host.includes("foursquare.com") ||
+      host.includes("openstreetmap.org") ||
+      (host.includes("bing.com") && path.startsWith("/maps")) ||
+      host.includes("waze.com")
+    ) {
+      return { subtype: "place", confidence: 1.0, method: "domain" };
+    }
+
     // Social platforms
     if (
       host === "x.com" ||

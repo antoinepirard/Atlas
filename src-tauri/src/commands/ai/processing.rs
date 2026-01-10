@@ -33,7 +33,7 @@ pub async fn process_with_ai(
 2. "summary": A concise 2-3 sentence summary of the content.
 3. "title": A concise, descriptive title (4-8 words) that captures the essence of the content.
 4. "is_article": Boolean - true if this is a readable article, blog post, or news story. False if it's a video, social media post, product page, homepage, or interactive app.
-5. "subtype": Classify as one of: "product" (e-commerce, retail), "article" (news, blog, documentation), "video" (video content), "social" (social media posts), "code" (repositories, code snippets), "audio" (podcasts, music).
+5. "subtype": Classify as one of: "product" (e-commerce, retail), "article" (news, blog, documentation), "video" (video content), "social" (social media posts), "code" (repositories, code snippets), "audio" (podcasts, music), "event" (event pages, tickets), "place" (maps, locations).
 6. "subtype_confidence": A number 0.0-1.0 indicating confidence in the subtype classification.
 
 Source: {}
@@ -51,7 +51,7 @@ Focus on the actual content when generating tags. Return ONLY valid JSON, no mar
 2. "summary": A concise 2-3 sentence summary
 3. "title": A concise, descriptive title (4-8 words) that captures the essence of the content.
 4. "is_article": Boolean - true if this is a readable article, blog post, or news story. False if it's a video, social media post, product page, homepage, or interactive app.
-5. "subtype": Classify as one of: "product" (e-commerce, retail), "article" (news, blog, documentation), "video" (video content), "social" (social media posts), "code" (repositories, code snippets), "audio" (podcasts, music).
+5. "subtype": Classify as one of: "product" (e-commerce, retail), "article" (news, blog, documentation), "video" (video content), "social" (social media posts), "code" (repositories, code snippets), "audio" (podcasts, music), "event" (event pages, tickets), "place" (maps, locations).
 6. "subtype_confidence": A number 0.0-1.0 indicating confidence in the subtype classification.
 
 URL: {}

@@ -9,6 +9,8 @@ import {
   CodeBracketIcon,
   MusicalNoteIcon,
   ChatBubbleLeftIcon,
+  CalendarDaysIcon,
+  MapPinIcon,
   CameraIcon,
   PhotoIcon,
   ChartBarIcon,
@@ -53,6 +55,16 @@ const subtypeConfig: Record<
     label: "Social",
     icon: ChatBubbleLeftIcon,
     color: "text-sky-500 bg-sky-50",
+  },
+  event: {
+    label: "Event",
+    icon: CalendarDaysIcon,
+    color: "text-rose-500 bg-rose-50",
+  },
+  place: {
+    label: "Place",
+    icon: MapPinIcon,
+    color: "text-emerald-500 bg-emerald-50",
   },
   // Image subtypes
   screenshot: {

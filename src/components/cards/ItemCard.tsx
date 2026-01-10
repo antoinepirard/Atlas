@@ -15,6 +15,8 @@ import {
   ArticleCard,
   CodeRepoCard,
   AudioCard,
+  EventCard,
+  PlaceCard,
 } from "./url";
 
 // Note subtype cards
@@ -65,6 +67,10 @@ export function ItemCard({
         return <CodeRepoCard {...baseProps} />;
       case "audio":
         return <AudioCard {...baseProps} />;
+      case "event":
+        return <EventCard {...baseProps} />;
+      case "place":
+        return <PlaceCard {...baseProps} />;
       case "social":
         // Use XPostCard for X/Twitter posts
         if (xPostInfo)
