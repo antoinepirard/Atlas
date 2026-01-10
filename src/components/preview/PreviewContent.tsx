@@ -225,7 +225,7 @@ export function PreviewContent({
               className="prose prose-stone prose-lg max-w-none prose-headings:text-stone-800 prose-a:text-amber-600 prose-a:no-underline hover:prose-a:underline"
               dangerouslySetInnerHTML={{
                 __html: DOMPurify.sanitize(
-                  item.article_content,
+                  item.article_content ?? "",
                   ARTICLE_SANITIZE_OPTIONS
                 ),
               }}

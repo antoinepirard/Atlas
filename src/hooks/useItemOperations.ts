@@ -265,7 +265,11 @@ export function useItemOperations(
             (aiSubtypeConfidence !== undefined && aiSubtypeConfidence < 0.65));
 
         const subtypeResult = prefersScreenshot
-          ? { subtype: "screenshot", confidence: 0.65, method: "ai" as const }
+          ? {
+              subtype: "screenshot" as ItemSubtype,
+              confidence: 0.65,
+              method: "ai" as const,
+            }
           : aiSubtype
             ? {
                 subtype: aiSubtype,
