@@ -43,9 +43,55 @@ fn get_key_from_keyring() -> Option<String> {
                 Some(key)
             }
         }
+        Err(keyring::Error::NoEntry) => {
+            // No key saved yet - this is expected, don't log
+            None
+        }
         Err(err) => {
             eprintln!("Failed to read API key from keychain: {}", err);
             None
+        }
+    }
+}
+
+/// Migrate file-based API key to keychain if needed
+/// Called on app startup to ensure keys are stored securely
+pub fn migrate_api_key_to_keychain() {
+    // Check if key exists in keychain already
+    if get_key_from_keyring().is_some() {
+        return;
+    }
+
+    // Check if file-based key exists
+    let file_key = match get_api_key_path() {
+        Ok(path) if path.exists() => {
+            match fs::read_to_string(&path) {
+                Ok(key) => {
+                    let key = key.trim().to_string();
+                    if key.is_empty() {
+                        return;
+                    }
+                    key
+                }
+                Err(_) => return,
+            }
+        }
+        _ => return,
+    };
+
+    // Try to migrate to keychain
+    if let Ok(entry) = keyring_entry() {
+        if entry.set_password(&file_key).is_ok() {
+            // Verify it was saved
+            if let Ok(verify_entry) = keyring_entry() {
+                if let Ok(stored) = verify_entry.get_password() {
+                    if stored.trim() == file_key {
+                        // Successfully migrated - remove file
+                        remove_key_file();
+                        println!("Migrated API key from file to keychain");
+                    }
+                }
+            }
         }
     }
 }

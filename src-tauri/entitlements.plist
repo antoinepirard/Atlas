@@ -14,6 +14,16 @@
     <!-- Note: Users will still need to manually grant Accessibility permission in System Settings -->
     <key>com.apple.security.automation.apple-events</key>
     <true/>
+
+    <!-- Allow microphone access for voice note transcription -->
+    <key>com.apple.security.device.audio-input</key>
+    <true/>
+
+    <!-- Keychain access for storing API keys -->
+    <key>keychain-access-groups</key>
+    <array>
+        <string>$(AppIdentifierPrefix)com.antoinepirard.atlas</string>
+    </array>
 </dict>
 </plist>
 

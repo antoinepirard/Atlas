@@ -325,9 +325,12 @@ pub fn run() {
         .manage(vault_state)
         .manage(tray_state)
         .setup(move |app| {
+            // Migrate API key from file to keychain if needed
+            commands::ai::migrate_api_key_to_keychain();
+
             let menu = create_app_menu(app.handle())?;
             app.set_menu(menu)?;
-            
+
             // Register the global shortcut
             app.global_shortcut().register(quick_capture_shortcut)?;
             
