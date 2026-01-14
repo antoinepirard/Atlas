@@ -3,6 +3,7 @@ import { listen } from "@tauri-apps/api/event";
 import { AddContentModal } from "./AddContentModal";
 import { PreviewModal } from "./PreviewModal";
 import { SettingsModal } from "./SettingsModal";
+import { SpaceManagementModal } from "./SpaceManagementModal";
 import { PasteIndicator } from "./PasteIndicator";
 import { UpdateToast } from "./UpdateToast";
 import { SelectionActionBar } from "./SelectionActionBar";
@@ -21,8 +22,12 @@ export function AtlasApp() {
   const { lock, status } = useVault();
   const [isAddModalOpen, setIsAddModalOpen] = useState(false);
   const [isSettingsOpen, setIsSettingsOpen] = useState(false);
+  const [isSpaceModalOpen, setIsSpaceModalOpen] = useState(false);
   const [isPasting, setIsPasting] = useState(false);
   const [selectedItem, setSelectedItem] = useState<Item | null>(null);
+  const [selectedItemSpaceIds, setSelectedItemSpaceIds] = useState<string[]>(
+    []
+  );
 
   const {
     items,
@@ -43,6 +48,16 @@ export function AtlasApp() {
     handleFilterType,
     loadMore,
     refresh,
+    // Spaces
+    spaces,
+    currentSpaceId,
+    selectSpace,
+    createSpace,
+    updateSpace,
+    deleteSpace,
+    addItemToSpace,
+    removeItemFromSpace,
+    getItemSpaces,
   } = useAtlas();
 
   const {
@@ -58,6 +73,66 @@ export function AtlasApp() {
   } = useMultiSelect({ items, deleteItems, enrichItems });
 
   const pendingRefreshRef = useRef(false);
+  const selectedItemId = selectedItem?.id ?? null;
+
+  useEffect(() => {
+    if (!selectedItemId) {
+      setSelectedItemSpaceIds([]);
+      return;
+    }
+
+    let isActive = true;
+
+    getItemSpaces(selectedItemId)
+      .then((spaceIds) => {
+        if (isActive) {
+          setSelectedItemSpaceIds(spaceIds);
+        }
+      })
+      .catch((err) => {
+        console.error("Failed to load item spaces:", err);
+      });
+
+    return () => {
+      isActive = false;
+    };
+  }, [selectedItemId, getItemSpaces]);
+
+  const handleToggleItemSpace = useCallback(
+    async (spaceId: string) => {
+      if (!selectedItemId) return;
+      const isSelected = selectedItemSpaceIds.includes(spaceId);
+
+      try {
+        if (isSelected) {
+          const removed = await removeItemFromSpace(spaceId, selectedItemId);
+          if (removed) {
+            setSelectedItemSpaceIds((prev) =>
+              prev.filter((id) => id !== spaceId)
+            );
+          }
+          if (currentSpaceId === spaceId) {
+            refresh();
+          }
+        } else {
+          await addItemToSpace(spaceId, selectedItemId);
+          setSelectedItemSpaceIds((prev) =>
+            prev.includes(spaceId) ? prev : [...prev, spaceId]
+          );
+        }
+      } catch (err) {
+        console.error("Failed to update item spaces:", err);
+      }
+    },
+    [
+      addItemToSpace,
+      currentSpaceId,
+      refresh,
+      removeItemFromSpace,
+      selectedItemId,
+      selectedItemSpaceIds,
+    ]
+  );
 
   useEffect(() => {
     const unlisten = listen("items-updated", () => {
@@ -124,39 +199,56 @@ export function AtlasApp() {
 
   // Listen for context menu actions from native menu
   useEffect(() => {
-    const unlisten = listen<{ action: string; item_id: string }>(
-      "context-menu-action",
-      async (event) => {
-        const { action, item_id } = event.payload;
-        const item = items.find((i) => i.id === item_id);
-        if (!item) return;
+    const unlisten = listen<{
+      action: string;
+      item_id: string;
+      space_id?: string;
+    }>("context-menu-action", async (event) => {
+      const { action, item_id, space_id } = event.payload;
 
-        switch (action) {
-          case "open_external":
-            {
-              const safeUrl = getSafeExternalUrl(item.content);
-              if (safeUrl) {
-                window.open(safeUrl, "_blank", "noopener,noreferrer");
-              }
-            }
-            break;
-          case "copy":
-            navigator.clipboard.writeText(item.content);
-            break;
-          case "enrich":
-            await enrichItems([item]);
-            break;
-          case "delete":
-            await deleteItem(item_id);
-            break;
+      if (action === "add_to_space") {
+        if (!space_id) return;
+        try {
+          await addItemToSpace(space_id, item_id);
+          if (selectedItemId === item_id) {
+            setSelectedItemSpaceIds((prev) =>
+              prev.includes(space_id) ? prev : [...prev, space_id]
+            );
+          }
+        } catch (err) {
+          console.error("Failed to add item to space:", err);
         }
+        return;
       }
-    );
+
+      const item = items.find((i) => i.id === item_id);
+      if (!item) return;
+
+      switch (action) {
+        case "open_external":
+          {
+            const safeUrl = getSafeExternalUrl(item.content);
+            if (safeUrl) {
+              window.open(safeUrl, "_blank", "noopener,noreferrer");
+            }
+          }
+          break;
+        case "copy":
+          navigator.clipboard.writeText(item.content);
+          break;
+        case "enrich":
+          await enrichItems([item]);
+          break;
+        case "delete":
+          await deleteItem(item_id);
+          break;
+      }
+    });
 
     return () => {
       unlisten.then((fn) => fn());
     };
-  }, [items, deleteItem, enrichItems]);
+  }, [addItemToSpace, deleteItem, enrichItems, items, selectedItemId]);
 
   // Listen for quick-capture events from Tauri - save automatically in the background
   useEffect(() => {
@@ -389,6 +481,10 @@ export function AtlasApp() {
         onLock={() => lock()}
         autoLockMinutes={status.auto_lock_minutes}
         onToggleMaximize={() => toggleMaximize()}
+        spaces={spaces}
+        currentSpaceId={currentSpaceId}
+        onSelectSpace={selectSpace}
+        onManageSpaces={() => setIsSpaceModalOpen(true)}
       />
 
       <AtlasContent
@@ -430,11 +526,24 @@ export function AtlasApp() {
           }
           return result;
         }}
+        spaces={spaces}
+        itemSpaceIds={selectedItemSpaceIds}
+        onToggleItemSpace={handleToggleItemSpace}
+        onCreateSpace={() => setIsSpaceModalOpen(true)}
       />
 
       <SettingsModal
         isOpen={isSettingsOpen}
         onClose={() => setIsSettingsOpen(false)}
+      />
+
+      <SpaceManagementModal
+        isOpen={isSpaceModalOpen}
+        onClose={() => setIsSpaceModalOpen(false)}
+        spaces={spaces}
+        onCreateSpace={createSpace}
+        onUpdateSpace={updateSpace}
+        onDeleteSpace={deleteSpace}
       />
 
       <UpdateToast onOpenSettings={() => setIsSettingsOpen(true)} />

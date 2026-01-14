@@ -1,6 +1,6 @@
 import { useMemo, useEffect, useState } from "react";
 import { motion, AnimatePresence } from "motion/react";
-import type { Item } from "../types";
+import type { Item, Space } from "../types";
 import * as tauri from "../lib/tauri";
 import {
   getYouTubeVideoId,
@@ -19,6 +19,10 @@ interface PreviewModalProps {
   totalItems?: number;
   currentIndex?: number;
   onUpdateItem?: (item: Item) => Promise<Item | null>;
+  spaces: Space[];
+  itemSpaceIds: string[];
+  onToggleItemSpace: (spaceId: string) => void;
+  onCreateSpace: () => void;
 }
 
 export function PreviewModal({
@@ -29,6 +33,10 @@ export function PreviewModal({
   totalItems = 0,
   currentIndex = -1,
   onUpdateItem,
+  spaces,
+  itemSpaceIds,
+  onToggleItemSpace,
+  onCreateSpace,
 }: PreviewModalProps) {
   const [fullImageUrl, setFullImageUrl] = useState<string | null>(null);
   const [isLoadingFullImage, setIsLoadingFullImage] = useState(false);
@@ -179,6 +187,10 @@ export function PreviewModal({
                 safeImageHref={safeImageHref}
                 youtubeVideoId={youtubeVideoId}
                 xPostInfo={xPostInfo}
+                spaces={spaces}
+                itemSpaceIds={itemSpaceIds}
+                onToggleItemSpace={onToggleItemSpace}
+                onCreateSpace={onCreateSpace}
               />
             </div>
           </motion.div>

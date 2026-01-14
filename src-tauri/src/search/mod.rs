@@ -44,10 +44,12 @@ fn cosine_similarity(a: &[f32], b: &[f32]) -> f32 {
 
 /// Perform semantic search using embeddings
 /// Returns the top `limit` results sorted by similarity
+/// Optionally filter by space_id
 #[tauri::command]
 pub fn semantic_search(
     query_embedding: Vec<f32>,
     limit: Option<usize>,
+    space_id: Option<String>,
     state: State<VaultState>,
 ) -> Result<SearchResponse, String> {
     let key = state.get_key().ok_or("Vault is locked")?;
@@ -59,11 +61,22 @@ pub fn semantic_search(
         .get_all_embeddings()
         .map_err(|e| format!("Failed to get embeddings: {}", e))?;
 
+    // If filtering by space, get the valid item IDs first
+    let space_item_ids: Option<std::collections::HashSet<String>> = if let Some(ref sid) = space_id {
+        let ids = state.db.get_space_item_ids(sid).map_err(|e| e.to_string())?;
+        Some(ids.into_iter().collect())
+    } else {
+        None
+    };
+
     let total_searched = embeddings.len();
 
-    // Calculate similarity for each embedding
+    // Calculate similarity for each embedding, filtering by space if needed
     let mut scored: Vec<(String, f32)> = embeddings
         .iter()
+        .filter(|(item_id, _)| {
+            space_item_ids.as_ref().map_or(true, |ids| ids.contains(item_id))
+        })
         .map(|(item_id, embedding)| {
             let similarity = cosine_similarity(&query_embedding, embedding);
             (item_id.clone(), similarity)

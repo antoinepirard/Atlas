@@ -235,3 +235,32 @@ export interface ParsedQuery {
   /** Original raw query */
   rawQuery: string;
 }
+
+// --- Space Types ---
+
+/** A space for grouping items */
+export interface Space {
+  id: string;
+  name: string;
+  /** Hex color like "#ff5500" */
+  color: string;
+  /** Optional emoji or icon */
+  icon: string | null;
+  created_at: string;
+  updated_at: string;
+}
+
+/** Input for creating a new space */
+export interface CreateSpaceInput {
+  name: string;
+  color: string;
+  icon?: string;
+}
+
+/** Input for updating a space */
+export interface UpdateSpaceInput {
+  id: string;
+  name: string;
+  color: string;
+  icon?: string;
+}

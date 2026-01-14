@@ -3,10 +3,14 @@ import type { Item } from "../types";
 import { useItemPagination } from "./useItemPagination";
 import { useItemSearch } from "./useItemSearch";
 import { useItemOperations } from "./useItemOperations";
+import { useSpaces } from "./useSpaces";
 
 export function useAtlas() {
-  const pagination = useItemPagination();
-  const search = useItemSearch(pagination.items);
+  const spacesState = useSpaces();
+  const { currentSpaceId } = spacesState;
+
+  const pagination = useItemPagination(currentSpaceId);
+  const search = useItemSearch(pagination.items, currentSpaceId);
   const { setItems, setTotalCount, loadMore: loadMorePage } = pagination;
 
   // Create stable callbacks for operations
@@ -73,5 +77,18 @@ export function useAtlas() {
     // Pagination
     loadMore,
     refresh: pagination.refresh,
+
+    // Spaces
+    spaces: spacesState.spaces,
+    currentSpaceId: spacesState.currentSpaceId,
+    selectSpace: spacesState.selectSpace,
+    createSpace: spacesState.createSpace,
+    updateSpace: spacesState.updateSpace,
+    deleteSpace: spacesState.deleteSpace,
+    addItemToSpace: spacesState.addItemToSpace,
+    removeItemFromSpace: spacesState.removeItemFromSpace,
+    getItemSpaces: spacesState.getItemSpaces,
+    setItemSpaces: spacesState.setItemSpaces,
+    refreshSpaces: spacesState.refresh,
   };
 }

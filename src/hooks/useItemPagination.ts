@@ -17,7 +17,9 @@ export interface UseItemPaginationReturn {
   setTotalCount: React.Dispatch<React.SetStateAction<number>>;
 }
 
-export function useItemPagination(): UseItemPaginationReturn {
+export function useItemPagination(
+  spaceId?: string | null
+): UseItemPaginationReturn {
   const [items, setItems] = useState<Item[]>([]);
   const [totalCount, setTotalCount] = useState(0);
   const [hasMore, setHasMore] = useState(true);
@@ -27,12 +29,16 @@ export function useItemPagination(): UseItemPaginationReturn {
 
   const loadingRef = useRef(false);
 
-  // Load initial page on mount
+  // Load initial page on mount or when spaceId changes
   useEffect(() => {
     const loadInitialItems = async () => {
       setIsLoading(true);
       try {
-        const page = await tauri.getItemsPage(0, PAGE_SIZE);
+        const page = await tauri.getItemsPage(
+          0,
+          PAGE_SIZE,
+          spaceId ?? undefined
+        );
         setItems(page.items);
         setTotalCount(page.total);
         setHasMore(page.has_more);
@@ -45,7 +51,7 @@ export function useItemPagination(): UseItemPaginationReturn {
     };
 
     loadInitialItems();
-  }, []);
+  }, [spaceId]);
 
   // Load more items (infinite scroll)
   const loadMore = useCallback(async () => {
@@ -56,7 +62,11 @@ export function useItemPagination(): UseItemPaginationReturn {
 
     try {
       const nextPage = currentPage + 1;
-      const page = await tauri.getItemsPage(nextPage, PAGE_SIZE);
+      const page = await tauri.getItemsPage(
+        nextPage,
+        PAGE_SIZE,
+        spaceId ?? undefined
+      );
 
       setItems((prev) => [...prev, ...page.items]);
       setHasMore(page.has_more);
@@ -67,12 +77,12 @@ export function useItemPagination(): UseItemPaginationReturn {
       setIsLoadingMore(false);
       loadingRef.current = false;
     }
-  }, [currentPage, hasMore]);
+  }, [currentPage, hasMore, spaceId]);
 
   // Refresh items (reset to first page)
   const refresh = useCallback(async () => {
     try {
-      const page = await tauri.getItemsPage(0, PAGE_SIZE);
+      const page = await tauri.getItemsPage(0, PAGE_SIZE, spaceId ?? undefined);
       setItems(page.items);
       setTotalCount(page.total);
       setHasMore(page.has_more);
@@ -80,7 +90,7 @@ export function useItemPagination(): UseItemPaginationReturn {
     } catch (err) {
       console.error("Failed to refresh items:", err);
     }
-  }, []);
+  }, [spaceId]);
 
   return {
     items,

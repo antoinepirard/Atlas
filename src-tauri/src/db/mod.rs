@@ -43,6 +43,15 @@ pub struct EncryptedItem {
     pub updated_at: String,
 }
 
+/// Encrypted space stored in the database
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct EncryptedSpace {
+    pub id: String,
+    pub encrypted_data: String,
+    pub created_at: String,
+    pub updated_at: String,
+}
+
 /// Vault configuration stored in the database
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct VaultConfig {
@@ -130,6 +139,29 @@ impl Database {
                 content='',
                 contentless_delete=1
             );
+
+            -- Spaces table: stores encrypted space metadata
+            CREATE TABLE IF NOT EXISTS spaces (
+                id TEXT PRIMARY KEY,
+                encrypted_data TEXT NOT NULL,
+                created_at TEXT NOT NULL,
+                updated_at TEXT NOT NULL
+            );
+
+            CREATE INDEX IF NOT EXISTS idx_spaces_created_at ON spaces(created_at);
+
+            -- Space-Item mapping table: unencrypted for fast querying
+            CREATE TABLE IF NOT EXISTS space_items (
+                space_id TEXT NOT NULL,
+                item_id TEXT NOT NULL,
+                added_at TEXT NOT NULL,
+                PRIMARY KEY (space_id, item_id),
+                FOREIGN KEY (space_id) REFERENCES spaces(id) ON DELETE CASCADE,
+                FOREIGN KEY (item_id) REFERENCES items(id) ON DELETE CASCADE
+            );
+
+            CREATE INDEX IF NOT EXISTS idx_space_items_space_id ON space_items(space_id);
+            CREATE INDEX IF NOT EXISTS idx_space_items_item_id ON space_items(item_id);
             "
         )?;
         
@@ -488,6 +520,138 @@ impl Database {
         let conn = self.conn.lock().unwrap();
         conn.execute("DELETE FROM items_fts WHERE item_id = ?1", [item_id])?;
         Ok(())
+    }
+
+    // --- Space Database Operations ---
+
+    /// Save an encrypted space
+    pub fn save_space(&self, space: &EncryptedSpace) -> SqliteResult<()> {
+        let conn = self.conn.lock().unwrap();
+        conn.execute(
+            "INSERT OR REPLACE INTO spaces (id, encrypted_data, created_at, updated_at)
+             VALUES (?1, ?2, ?3, ?4)",
+            [&space.id, &space.encrypted_data, &space.created_at, &space.updated_at],
+        )?;
+        Ok(())
+    }
+
+    /// Get all encrypted spaces
+    pub fn get_all_spaces(&self) -> SqliteResult<Vec<EncryptedSpace>> {
+        let conn = self.conn.lock().unwrap();
+        let mut stmt = conn.prepare(
+            "SELECT id, encrypted_data, created_at, updated_at FROM spaces ORDER BY created_at ASC"
+        )?;
+
+        let spaces = stmt.query_map([], |row| {
+            Ok(EncryptedSpace {
+                id: row.get(0)?,
+                encrypted_data: row.get(1)?,
+                created_at: row.get(2)?,
+                updated_at: row.get(3)?,
+            })
+        })?;
+
+        spaces.collect()
+    }
+
+    /// Get a single space by ID
+    pub fn get_space(&self, id: &str) -> SqliteResult<Option<EncryptedSpace>> {
+        let conn = self.conn.lock().unwrap();
+        let mut stmt = conn.prepare(
+            "SELECT id, encrypted_data, created_at, updated_at FROM spaces WHERE id = ?1"
+        )?;
+
+        let space = stmt.query_row([id], |row| {
+            Ok(EncryptedSpace {
+                id: row.get(0)?,
+                encrypted_data: row.get(1)?,
+                created_at: row.get(2)?,
+                updated_at: row.get(3)?,
+            })
+        }).ok();
+
+        Ok(space)
+    }
+
+    /// Delete a space
+    pub fn delete_space(&self, id: &str) -> SqliteResult<bool> {
+        let conn = self.conn.lock().unwrap();
+        let affected = conn.execute("DELETE FROM spaces WHERE id = ?1", [id])?;
+        Ok(affected > 0)
+    }
+
+    // --- Space-Item Mapping Operations ---
+
+    /// Add item to space
+    pub fn add_item_to_space(&self, space_id: &str, item_id: &str, added_at: &str) -> SqliteResult<()> {
+        let conn = self.conn.lock().unwrap();
+        conn.execute(
+            "INSERT OR IGNORE INTO space_items (space_id, item_id, added_at) VALUES (?1, ?2, ?3)",
+            [space_id, item_id, added_at],
+        )?;
+        Ok(())
+    }
+
+    /// Remove item from space
+    pub fn remove_item_from_space(&self, space_id: &str, item_id: &str) -> SqliteResult<bool> {
+        let conn = self.conn.lock().unwrap();
+        let affected = conn.execute(
+            "DELETE FROM space_items WHERE space_id = ?1 AND item_id = ?2",
+            [space_id, item_id],
+        )?;
+        Ok(affected > 0)
+    }
+
+    /// Get all space IDs for an item
+    pub fn get_item_space_ids(&self, item_id: &str) -> SqliteResult<Vec<String>> {
+        let conn = self.conn.lock().unwrap();
+        let mut stmt = conn.prepare("SELECT space_id FROM space_items WHERE item_id = ?1")?;
+        let ids = stmt.query_map([item_id], |row| row.get(0))?;
+        ids.collect()
+    }
+
+    /// Get all item IDs in a space
+    pub fn get_space_item_ids(&self, space_id: &str) -> SqliteResult<Vec<String>> {
+        let conn = self.conn.lock().unwrap();
+        let mut stmt = conn.prepare("SELECT item_id FROM space_items WHERE space_id = ?1")?;
+        let ids = stmt.query_map([space_id], |row| row.get(0))?;
+        ids.collect()
+    }
+
+    /// Get paginated items filtered by space
+    pub fn get_items_page_by_space(
+        &self,
+        space_id: &str,
+        offset: u32,
+        limit: u32,
+    ) -> SqliteResult<Vec<EncryptedItem>> {
+        let conn = self.conn.lock().unwrap();
+        let mut stmt = conn.prepare(
+            "SELECT i.id, i.encrypted_data, i.created_at, i.updated_at
+             FROM items i
+             INNER JOIN space_items si ON i.id = si.item_id
+             WHERE si.space_id = ?1
+             ORDER BY i.created_at DESC
+             LIMIT ?2 OFFSET ?3"
+        )?;
+
+        let items = stmt.query_map(rusqlite::params![space_id, limit, offset], |row| {
+            Ok(EncryptedItem {
+                id: row.get(0)?,
+                encrypted_data: row.get(1)?,
+                created_at: row.get(2)?,
+                updated_at: row.get(3)?,
+            })
+        })?;
+
+        items.collect()
+    }
+
+    /// Get item count for a space
+    pub fn get_space_item_count(&self, space_id: &str) -> SqliteResult<i64> {
+        let conn = self.conn.lock().unwrap();
+        let mut stmt = conn.prepare("SELECT COUNT(*) FROM space_items WHERE space_id = ?1")?;
+        stmt.query_row([space_id], |row| row.get(0))
     }
 }
 

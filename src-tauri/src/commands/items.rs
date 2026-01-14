@@ -486,21 +486,34 @@ const DEFAULT_PAGE_SIZE: u32 = 50;
 
 /// Get paginated items (decrypted)
 /// For images with external storage, returns thumbnails instead of full images
+/// Optionally filter by space_id
 #[tauri::command]
 pub fn get_items_page(
     page: u32,
     limit: Option<u32>,
+    space_id: Option<String>,
     state: State<VaultState>,
 ) -> Result<ItemsPage, String> {
     let key = state.get_key().ok_or("Vault is locked")?;
     let page_size = limit.unwrap_or(DEFAULT_PAGE_SIZE);
     let offset = page * page_size;
 
-    let total = state.db.get_item_count().map_err(|e| e.to_string())?;
-    let encrypted_items = state
-        .db
-        .get_items_page(offset, page_size)
-        .map_err(|e| e.to_string())?;
+    // Get total and items, filtered by space if specified
+    let (total, encrypted_items) = if let Some(ref sid) = space_id {
+        let count = state.db.get_space_item_count(sid).map_err(|e| e.to_string())?;
+        let items = state
+            .db
+            .get_items_page_by_space(sid, offset, page_size)
+            .map_err(|e| e.to_string())?;
+        (count, items)
+    } else {
+        let count = state.db.get_item_count().map_err(|e| e.to_string())?;
+        let items = state
+            .db
+            .get_items_page(offset, page_size)
+            .map_err(|e| e.to_string())?;
+        (count, items)
+    };
 
     let mut items = Vec::new();
     for encrypted in encrypted_items {

@@ -418,10 +418,18 @@ pub fn run() {
             if event.id().as_ref().starts_with("ctx_") {
                 if let Some(window) = app.get_webview_window("main") {
                     if let Some(item_id) = commands::menu::get_current_context_item_id() {
-                        let action = event.id().as_ref().strip_prefix("ctx_").unwrap_or("");
+                        let raw_action = event.id().as_ref();
+                        let (action, space_id) = if let Some(space_id) =
+                            raw_action.strip_prefix("ctx_space_")
+                        {
+                            ("add_to_space", Some(space_id.to_string()))
+                        } else {
+                            (raw_action.strip_prefix("ctx_").unwrap_or(""), None)
+                        };
                         let payload = serde_json::json!({
                             "action": action,
-                            "item_id": item_id
+                            "item_id": item_id,
+                            "space_id": space_id
                         });
                         let _ = window.emit("context-menu-action", payload);
                     }
@@ -519,6 +527,15 @@ pub fn run() {
             commands::update_item,
             commands::delete_item,
             commands::get_item_count,
+            // Space commands
+            commands::get_all_spaces,
+            commands::create_space,
+            commands::update_space,
+            commands::delete_space,
+            commands::add_item_to_space,
+            commands::remove_item_from_space,
+            commands::get_item_spaces,
+            commands::set_item_spaces,
             // Image commands (external storage)
             commands::get_full_image,
             commands::migrate_image_to_external,

@@ -19,8 +19,9 @@ import {
   ListBulletIcon,
   ChatBubbleBottomCenterTextIcon,
 } from "@heroicons/react/24/outline";
-import type { Item } from "../../types";
+import type { Item, Space } from "../../types";
 import { formatDate, getDomain } from "../../utils/urlUtils";
+import { SpaceSelector } from "../SpaceSelector";
 
 type XPostInfo = { username: string; postId: string } | null;
 
@@ -118,6 +119,10 @@ interface PreviewDetailsProps {
   safeImageHref: string | null;
   youtubeVideoId: string | null;
   xPostInfo: XPostInfo;
+  spaces: Space[];
+  itemSpaceIds: string[];
+  onToggleItemSpace: (spaceId: string) => void;
+  onCreateSpace: () => void;
 }
 
 export function PreviewDetails({
@@ -128,6 +133,10 @@ export function PreviewDetails({
   safeImageHref,
   youtubeVideoId,
   xPostInfo,
+  spaces,
+  itemSpaceIds,
+  onToggleItemSpace,
+  onCreateSpace,
 }: PreviewDetailsProps) {
   // Get subtype display info
   const subtypeInfo = useMemo(() => {
@@ -206,6 +215,19 @@ export function PreviewDetails({
           </div>
         </div>
       )}
+
+      {/* Spaces */}
+      <div className="mt-6">
+        <p className="text-xs font-medium text-stone-400 uppercase tracking-wider mb-2">
+          Spaces
+        </p>
+        <SpaceSelector
+          spaces={spaces}
+          selectedSpaceIds={itemSpaceIds}
+          onToggleSpace={onToggleItemSpace}
+          onCreateSpace={onCreateSpace}
+        />
+      </div>
 
       {item.type === "url" && (
         <div className="mt-6">

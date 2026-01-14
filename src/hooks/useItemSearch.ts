@@ -15,7 +15,10 @@ export interface UseItemSearchReturn {
   handleFilterType: (type: ItemType | null) => void;
 }
 
-export function useItemSearch(items: Item[]): UseItemSearchReturn {
+export function useItemSearch(
+  items: Item[],
+  spaceId?: string | null
+): UseItemSearchReturn {
   const [searchQuery, setSearchQuery] = useState("");
   const [parsedQuery, setParsedQuery] = useState<ParsedQuery | null>(null);
   const [filterType, setFilterType] = useState<ItemType | null>(null);
@@ -70,8 +73,12 @@ export function useItemSearch(items: Item[]): UseItemSearchReturn {
           return;
         }
 
-        // Perform server-side semantic search
-        const searchResponse = await tauri.semanticSearch(queryEmbedding, 100);
+        // Perform server-side semantic search (filtered by space if specified)
+        const searchResponse = await tauri.semanticSearch(
+          queryEmbedding,
+          100,
+          spaceId ?? undefined
+        );
 
         // Convert search results to SearchResult format
         const semanticItems: SearchResult[] = searchResponse.results.map(
@@ -110,7 +117,7 @@ export function useItemSearch(items: Item[]): UseItemSearchReturn {
         clearTimeout(searchTimeoutRef.current);
       }
     };
-  }, [searchQuery, parsedRemainingText, hasParsedQuery]);
+  }, [searchQuery, parsedRemainingText, hasParsedQuery, spaceId]);
 
   // Filter items - now applies structured filters from ParsedQuery
   const filteredItems = useMemo((): SearchResult[] => {

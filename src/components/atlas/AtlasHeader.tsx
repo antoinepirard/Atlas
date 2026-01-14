@@ -6,7 +6,8 @@ import {
 } from "@heroicons/react/24/outline";
 import { SearchBar } from "../SearchBar";
 import { TypeFilter } from "../TypeFilter";
-import type { ItemType, ParsedQuery } from "../../types";
+import { SpaceSwitcher } from "../SpaceSwitcher";
+import type { ItemType, ParsedQuery, Space } from "../../types";
 
 interface AtlasHeaderProps {
   isScrolled: boolean;
@@ -21,6 +22,10 @@ interface AtlasHeaderProps {
   onLock: () => void;
   autoLockMinutes: number;
   onToggleMaximize: () => void;
+  spaces: Space[];
+  currentSpaceId: string | null;
+  onSelectSpace: (spaceId: string | null) => void;
+  onManageSpaces: () => void;
 }
 
 export function AtlasHeader({
@@ -36,6 +41,10 @@ export function AtlasHeader({
   onLock,
   autoLockMinutes,
   onToggleMaximize,
+  spaces,
+  currentSpaceId,
+  onSelectSpace,
+  onManageSpaces,
 }: AtlasHeaderProps) {
   return (
     <header className="sticky top-0 z-40 bg-stone-100/95 backdrop-blur-sm border-b border-stone-200/50">
@@ -46,15 +55,24 @@ export function AtlasHeader({
       />
 
       <div className="flex items-center justify-between px-4 py-2">
-        <motion.button
-          whileHover={{ scale: 1.05 }}
-          whileTap={{ scale: 0.95 }}
-          onClick={onOpenSettings}
-          className="p-2 text-stone-400 hover:text-stone-600 hover:bg-stone-200/50 rounded-lg transition-colors"
-          title="Settings"
-        >
-          <Cog6ToothIcon className="w-5 h-5" />
-        </motion.button>
+        <div className="flex items-center gap-1">
+          <motion.button
+            whileHover={{ scale: 1.05 }}
+            whileTap={{ scale: 0.95 }}
+            onClick={onOpenSettings}
+            className="p-2 text-stone-400 hover:text-stone-600 hover:bg-stone-200/50 rounded-lg transition-colors"
+            title="Settings"
+          >
+            <Cog6ToothIcon className="w-5 h-5" />
+          </motion.button>
+
+          <SpaceSwitcher
+            spaces={spaces}
+            currentSpaceId={currentSpaceId}
+            onSelectSpace={onSelectSpace}
+            onManageSpaces={onManageSpaces}
+          />
+        </div>
 
         <div className="flex items-center gap-3">
           <TypeFilter value={filterType} onChange={onFilterType} />

@@ -17,6 +17,9 @@ import type {
   AiSettings,
   AiUsageDay,
   AiBudgetStatus,
+  Space,
+  CreateSpaceInput,
+  UpdateSpaceInput,
 } from "../types";
 
 // Vault commands
@@ -83,9 +86,10 @@ export async function getAllItems(): Promise<Item[]> {
 
 export async function getItemsPage(
   page: number,
-  limit?: number
+  limit?: number,
+  spaceId?: string
 ): Promise<ItemsPage> {
-  return invoke("get_items_page", { page, limit });
+  return invoke("get_items_page", { page, limit, spaceId });
 }
 
 export async function addItem(input: AddItemInput): Promise<Item> {
@@ -102,6 +106,48 @@ export async function deleteItem(id: string): Promise<boolean> {
 
 export async function getItemCount(): Promise<number> {
   return invoke("get_item_count");
+}
+
+// Space commands
+export async function getAllSpaces(): Promise<Space[]> {
+  return invoke("get_all_spaces");
+}
+
+export async function createSpace(input: CreateSpaceInput): Promise<Space> {
+  return invoke("create_space", { input });
+}
+
+export async function updateSpace(input: UpdateSpaceInput): Promise<Space> {
+  return invoke("update_space", { input });
+}
+
+export async function deleteSpace(id: string): Promise<boolean> {
+  return invoke("delete_space", { id });
+}
+
+export async function addItemToSpace(
+  spaceId: string,
+  itemId: string
+): Promise<void> {
+  return invoke("add_item_to_space", { spaceId, itemId });
+}
+
+export async function removeItemFromSpace(
+  spaceId: string,
+  itemId: string
+): Promise<boolean> {
+  return invoke("remove_item_from_space", { spaceId, itemId });
+}
+
+export async function getItemSpaces(itemId: string): Promise<string[]> {
+  return invoke("get_item_spaces", { itemId });
+}
+
+export async function setItemSpaces(
+  itemId: string,
+  spaceIds: string[]
+): Promise<void> {
+  return invoke("set_item_spaces", { itemId, spaceIds });
 }
 
 // Image commands (external storage)
@@ -186,9 +232,10 @@ export async function classifySearchTokens(
 // Server-side search commands
 export async function semanticSearch(
   queryEmbedding: number[],
-  limit?: number
+  limit?: number,
+  spaceId?: string
 ): Promise<SearchResponse> {
-  return invoke("semantic_search", { queryEmbedding, limit });
+  return invoke("semantic_search", { queryEmbedding, limit, spaceId });
 }
 
 export async function textSearch(
